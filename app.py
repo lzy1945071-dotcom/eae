@@ -8,8 +8,6 @@ import plotly.express as px
 import ta
 import math
 from datetime import datetime
-
-# ========== 新增导入 ==========
 from streamlit_autorefresh import st_autorefresh
 
 st.set_page_config(page_title="Legend Quant Terminal Elite v3 FIX10", layout="wide")
@@ -23,7 +21,7 @@ auto_refresh_sec = st.sidebar.number_input("自动刷新间隔（秒，0 表示�
 if auto_refresh_sec > 0:
     st_autorefresh(interval=auto_refresh_sec * 1000, key="auto_refresh")
 
-# ========================= Sidebar: ① 数据来源与标的 =========================
+# ========================= Sidebar: 数据来源与标的 =========================
 st.sidebar.header("① 数据来源与标的")
 source = st.sidebar.selectbox(
     "数据来源",
@@ -37,10 +35,7 @@ source = st.sidebar.selectbox(
     index=0
 )
 
-api_base = ""
-api_key = ""
-api_secret = ""
-api_passphrase = ""
+api_base, api_key, api_secret, api_passphrase = "", "", "", ""
 
 if source in ["OKX API（可填API基址）", "TokenInsight API 模式（可填API基址）"]:
     st.sidebar.markdown("**API 连接设置**")
@@ -51,30 +46,18 @@ if source in ["OKX API（可填API基址）", "TokenInsight API 模式（可填A
             api_secret = st.text_input("OKX-API-SECRET", value="", type="password")
             api_passphrase = st.text_input("OKX-API-PASSPHRASE", value="", type="password")
 
-# ===== 在这里先定义 symbol / interval，再去 load_router =====
 if source in ["CoinGecko（免API）", "TokenInsight API 模式（可填API基址）"]:
-    symbol = st.sidebar.selectbox("个标（CoinGecko coin_id）",
-                                  ["bitcoin", "ethereum", "solana", "dogecoin", "cardano", "ripple", "polkadot"],
-                                  index=1)
-    combo_symbols = st.sidebar.multiselect("组合标（可多选，默认留空）",
-                                           ["bitcoin", "ethereum", "solana", "dogecoin", "cardano", "ripple", "polkadot"],
-                                           default=[])
-    interval = st.sidebar.selectbox("K线周期（映射）", ["1d", "1w", "1M", "max"], index=0,
-                                    help="CoinGecko/TokenInsight 免费接口多为日级/周级聚合，不提供细分分钟线。")
+    symbol = st.sidebar.selectbox("个标（CoinGecko coin_id）", ["bitcoin","ethereum","solana","dogecoin","cardano","ripple","polkadot"], index=1)
+    combo_symbols = st.sidebar.multiselect("组合标（可多选，默认留空）", ["bitcoin","ethereum","solana","dogecoin","cardano","ripple","polkadot"], default=[])
+    interval = st.sidebar.selectbox("K线周期（映射）", ["1d","1w","1M","max"], index=0, help="CoinGecko/TokenInsight 免费接口多为日级/周级聚合")
 elif source in ["OKX 公共行情（免API）", "OKX API（可填API基址）"]:
-    symbol = st.sidebar.selectbox("个标（OKX InstId）", ["BTC-USDT", "ETH-USDT", "SOL-USDT", "XRP-USDT", "DOGE-USDT"], index=1)
-    combo_symbols = st.sidebar.multiselect("组合标（可多选，默认留空）",
-                                           ["BTC-USDT", "ETH-USDT", "SOL-USDT", "XRP-USDT", "DOGE-USDT"],
-                                           default=[])
-    interval = st.sidebar.selectbox("K线周期",
-                                    ["1m", "3m", "5m", "15m", "30m", "1H", "2H", "4H", "6H", "12H", "1D", "1W", "1M"],
-                                    index=10)
+    symbol = st.sidebar.selectbox("个标（OKX InstId）", ["BTC-USDT","ETH-USDT","SOL-USDT","XRP-USDT","DOGE-USDT"], index=1)
+    combo_symbols = st.sidebar.multiselect("组合标（可多选，默认留空）", ["BTC-USDT","ETH-USDT","SOL-USDT","XRP-USDT","DOGE-USDT"], default=[])
+    interval = st.sidebar.selectbox("K线周期", ["1m","3m","5m","15m","30m","1H","2H","4H","6H","12H","1D","1W","1M"], index=10)
 else:
-    symbol = st.sidebar.selectbox("个标（美股/A股）", ["AAPL", "TSLA", "MSFT", "NVDA", "600519.SS", "000001.SS"], index=0)
-    combo_symbols = st.sidebar.multiselect("组合标（可多选，默认留空）",
-                                           ["AAPL", "TSLA", "MSFT", "NVDA", "600519.SS", "000001.SS"],
-                                           default=[])
-    interval = st.sidebar.selectbox("K线周期", ["1d", "1wk", "1mo"], index=0)
+    symbol = st.sidebar.selectbox("个标（美股/A股）", ["AAPL","TSLA","MSFT","NVDA","600519.SS","000001.SS"], index=0)
+    combo_symbols = st.sidebar.multiselect("组合标（可多选，默认留空）", ["AAPL","TSLA","MSFT","NVDA","600519.SS","000001.SS"], default=[])
+    interval = st.sidebar.selectbox("K线周期", ["1d","1wk","1mo"], index=0)
 
 # ========================= Data Loaders =========================
 def _cg_days_from_interval(sel: str) -> str:
@@ -97,7 +80,21 @@ def load_coingecko_ohlc_robust(coin_id: str, interval_sel: str):
                 return pd.DataFrame(rows, columns=["Date", "Open", "High", "Low", "Close"]).set_index("Date")
     except Exception:
         pass
-    st.stop()
+    try:
+        url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart"
+        params = {"vs_currency":"usd", "days": days if days != "max" else "365"}
+        r = requests.get(url, params=params, timeout=20)
+        r.raise_for_status()
+        data = r.json()
+        prices = data.get("prices", [])
+        if prices:
+            s = pd.Series([float(p[1]) for p in prices], index=pd.to_datetime([int(p[0]) for p in prices], unit="ms"), name="price").sort_index()
+            ohlc = s.resample("1D").agg(["first","max","min","last"]).dropna()
+            ohlc.columns = ["Open","High","Low","Close"]
+            return ohlc
+    except Exception:
+        pass
+    return pd.DataFrame()
 
 # 标的与周期
 if source in ["CoinGecko（免API）", "TokenInsight API 模式（可填API基址）"]:
