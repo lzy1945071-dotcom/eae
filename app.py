@@ -61,29 +61,29 @@ def get_okx_data(symbol="BTC-USDT", bar="1D", limit=200):
         df[["open","high","low","close","volume"]] = df[["open","high","low","close","volume"]].astype(float)
         return df[["time","open","high","low","close","volume"]].sort_values("time")
     except Exception as e:
-        st.error(f"OKX 公共行情数据获取失败: {e}")
+        st.error(f"OKX 数据获取失败: {e}")
         return pd.DataFrame()
 
 # ================================
 # 技术指标
 # ================================
-def add_indicators(df, macd_fast=12, macd_slow=26, macd_signal=9, rsi_period=14):
+def add_indicators(df):
     if df.empty: return df
     df["MA20"] = df["close"].rolling(20).mean()
     df["MA50"] = df["close"].rolling(50).mean()
     df["EMA200"] = df["close"].ewm(span=200).mean()
     # MACD
-    exp1 = df["close"].ewm(span=macd_fast).mean()
-    exp2 = df["close"].ewm(span=macd_slow).mean()
+    exp1 = df["close"].ewm(span=12).mean()
+    exp2 = df["close"].ewm(span=26).mean()
     df["MACD"] = exp1 - exp2
-    df["Signal"] = df["MACD"].ewm(span=macd_signal).mean()
+    df["Signal"] = df["MACD"].ewm(span=9).mean()
     df["Hist"] = df["MACD"] - df["Signal"]
     # RSI
     delta = df["close"].diff()
     gain = np.where(delta > 0, delta, 0)
     loss = np.where(delta < 0, -delta, 0)
-    avg_gain = pd.Series(gain).rolling(rsi_period).mean()
-    avg_loss = pd.Series(loss).rolling(rsi_period).mean()
+    avg_gain = pd.Series(gain).rolling(14).mean()
+    avg_loss = pd.Series(loss).rolling(14).mean()
     rs = avg_gain / (avg_loss + 1e-9)
     df["RSI"] = 100 - (100 / (1 + rs))
     return df
@@ -106,14 +106,17 @@ def strategy_suggestion(df, show_rsi, show_macd, show_volume):
     support, resist = recent["low"].min(), recent["high"].max()
     suggestions.append(f"支撑位 ~ {support:.2f}，阻力位 ~ {resist:.2f}")
 
+    # RSI 策略
     if show_rsi:
         if latest["RSI"] > 70: suggestions.append("RSI 超买，注意风险")
         elif latest["RSI"] < 30: suggestions.append("RSI 超卖，可能反弹")
 
+    # MACD 策略
     if show_macd:
         if latest["MACD"] > latest["Signal"]: suggestions.append("MACD 金叉 → 偏多")
         else: suggestions.append("MACD 死叉 → 偏空")
 
+    # 成交量
     if show_volume:
         avg_vol = df["volume"].tail(20).mean()
         if latest["volume"] > 1.5*avg_vol:
@@ -130,9 +133,9 @@ st.sidebar.header("⚙️ 功能面板")
 
 # 功能 1 数据源
 source = st.sidebar.selectbox("数据源选择", [
-    "CoinGecko API", "Binance 公共API", "OKX 公共API", "OKX API", "TokenInsight API"
+    "CoinGecko API", "Binance 公共API", "OKX 公共API", "TokenInsight API"
 ])
-if source in ["OKX API", "TokenInsight API"]:
+if source == "TokenInsight API":
     api_url = st.sidebar.text_input("请输入API地址")
 
 # 功能 2 个标
@@ -141,30 +144,19 @@ symbol = st.sidebar.text_input("个标（如 ethereum, BTCUSDT, BTC-USDT 等）"
 # 功能 3 周期
 interval = st.sidebar.selectbox("选择周期", ["1d","1h","15m","4h"])
 
-# 功能 4 市场类型
-market_type = st.sidebar.selectbox("市场类型", ["加密货币", "A股", "美股"])
-
-# 根据市场自动设置参数
-if market_type == "加密货币":
-    macd_fast, macd_slow, macd_signal, rsi_period = 12, 26, 9, 14
-elif market_type == "A股":
-    macd_fast, macd_slow, macd_signal, rsi_period = 8, 17, 9, 6
-else:  # 美股
-    macd_fast, macd_slow, macd_signal, rsi_period = 12, 26, 9, 14
-
-# 功能 5 技术指标开关
+# 功能 4 技术指标开关
 st.sidebar.subheader("📊 技术指标")
 show_ma20 = st.sidebar.checkbox("显示 MA20", True)
 show_ma50 = st.sidebar.checkbox("显示 MA50", True)
 show_ema200 = st.sidebar.checkbox("显示 EMA200", True)
 
-# 功能 6 副图开关
+# 功能 5 副图开关
 st.sidebar.subheader("📉 副图选择")
 show_volume = st.sidebar.checkbox("显示 成交量", True)
 show_rsi = st.sidebar.checkbox("显示 RSI", True)
 show_macd = st.sidebar.checkbox("显示 MACD", True)
 
-# 功能 7 副图显示模式
+# 功能 6 副图显示模式
 merge_mode = st.sidebar.radio("副图显示模式", ["分离模式", "合并模式"], index=0)
 
 # ================================
@@ -179,14 +171,11 @@ elif source == "Binance 公共API":
 elif source == "OKX 公共API":
     df = get_okx_data(symbol if "-" in symbol else symbol.upper()+"-USDT", 
                       "1H" if interval=="1h" else ("15m" if interval=="15m" else "1D"))
-elif source == "OKX API":
-    st.warning("OKX API 模式需用户手动对接，这里仅做占位")
-    df = pd.DataFrame()
 else:
-    st.warning("TokenInsight API 模式需用户手动对接，这里仅做占位")
-    df = pd.DataFrame()
+    st.warning("TokenInsight API 需手动配置，此处暂未实现")
+    df = get_coingecko_data(symbol, days="180", interval=interval)
 
-df = add_indicators(df, macd_fast, macd_slow, macd_signal, rsi_period)
+df = add_indicators(df)
 
 if not df.empty:
     # 主图
