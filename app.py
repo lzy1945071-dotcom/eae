@@ -1,15 +1,14 @@
-# app.py — Legend Quant Terminal Elite v3 FIX11 (TV风格 + Binance数据源 + MACD副图 + 实时策略增强 + API源入口)
+# app.py — Legend Quant Terminal Elite v3 FIX12
 import streamlit as st
 import pandas as pd
 import numpy as np
 import requests
 import yfinance as yf
 import plotly.graph_objects as go
-import plotly.express as px
 import ta
 
-st.set_page_config(page_title="Legend Quant Terminal Elite v3 FIX11", layout="wide")
-st.title("💎 Legend Quant Terminal Elite v3 FIX11")
+st.set_page_config(page_title="Legend Quant Terminal Elite v3 FIX12", layout="wide")
+st.title("💎 Legend Quant Terminal Elite v3 FIX12")
 
 # ========================= Sidebar: ① 数据来源与标的 =========================
 st.sidebar.header("① 数据来源与标的")
@@ -18,7 +17,7 @@ source = st.sidebar.selectbox(
     [
         "CoinGecko（免API）",
         "OKX 公共行情（免API）",
-        "Binance 公共行情（免API）",   # ✅ 新增
+        "Binance 公共行情（免API）",
         "OKX API（可填API基址）",
         "TokenInsight API 模式（可填API基址）",
         "Yahoo Finance（美股/A股）",
@@ -40,22 +39,22 @@ if source in ["OKX API（可填API基址）", "TokenInsight API 模式（可填A
             api_secret = st.text_input("OKX-API-SECRET", value="", type="password")
             api_passphrase = st.text_input("OKX-API-PASSPHRASE", value="", type="password")
 
-# 标的与周期
+# 标的选择
 if source in ["CoinGecko（免API）", "TokenInsight API 模式（可填API基址）"]:
     symbol = st.sidebar.selectbox("个标（CoinGecko coin_id）", ["bitcoin","ethereum","solana","dogecoin","cardano","ripple","polkadot"], index=1)
     combo_symbols = st.sidebar.multiselect("组合标（可多选，默认留空）", ["bitcoin","ethereum","solana","dogecoin","cardano","ripple","polkadot"], default=[])
     interval = st.sidebar.selectbox("K线周期（映射）", ["1d","1w","1M","max"], index=0)
 elif source in ["OKX 公共行情（免API）", "OKX API（可填API基址）"]:
     symbol = st.sidebar.selectbox("个标（OKX InstId）", ["BTC-USDT","ETH-USDT","SOL-USDT","XRP-USDT","DOGE-USDT"], index=1)
-    combo_symbols = st.sidebar.multiselect("组合标（可多选，默认留空）", ["BTC-USDT","ETH-USDT","SOL-USDT","XRP-USDT","DOGE-USDT"], default=[])
+    combo_symbols = st.sidebar.multiselect("组合标", ["BTC-USDT","ETH-USDT","SOL-USDT","XRP-USDT","DOGE-USDT"], default=[])
     interval = st.sidebar.selectbox("K线周期", ["1m","3m","5m","15m","30m","1H","2H","4H","6H","12H","1D","1W","1M"], index=10)
 elif source == "Binance 公共行情（免API）":
     symbol = st.sidebar.selectbox("个标（Binance Symbol）", ["BTCUSDT","ETHUSDT","SOLUSDT","XRPUSDT","DOGEUSDT"], index=0)
-    combo_symbols = st.sidebar.multiselect("组合标（可多选，默认留空）", ["BTCUSDT","ETHUSDT","SOLUSDT","XRPUSDT","DOGEUSDT"], default=[])
+    combo_symbols = st.sidebar.multiselect("组合标", ["BTCUSDT","ETHUSDT","SOLUSDT","XRPUSDT","DOGEUSDT"], default=[])
     interval = st.sidebar.selectbox("K线周期", ["1m","3m","5m","15m","30m","1h","2h","4h","6h","12h","1d","1w","1M"], index=11)
 else:
     symbol = st.sidebar.selectbox("个标（美股/A股）", ["AAPL","TSLA","MSFT","NVDA","600519.SS","000001.SS"], index=0)
-    combo_symbols = st.sidebar.multiselect("组合标（可多选，默认留空）", ["AAPL","TSLA","MSFT","NVDA","600519.SS","000001.SS"], default=[])
+    combo_symbols = st.sidebar.multiselect("组合标", ["AAPL","TSLA","MSFT","NVDA","600519.SS","000001.SS"], default=[])
     interval = st.sidebar.selectbox("K线周期", ["1d","1wk","1mo"], index=0)
 
 # ========================= Sidebar: ③ 指标与参数 =========================
@@ -86,13 +85,51 @@ st.sidebar.markdown('''
 
 # ========================= Sidebar: ⑤ 风控参数 =========================
 st.sidebar.header("⑤ 风控参数")
-account_value = st.sidebar.number_input("账户总资金", min_value=1.0, value=100000.0, step=5.0)
+account_value = st.sidebar.number_input("账户总资金", min_value=1.0, value=1000.0, step=5.0)
 risk_pct = st.sidebar.slider("单笔风险（%）", 0.1, 2.0, 0.5, 0.1)
 leverage = st.sidebar.slider("杠杆倍数", 1, 10, 1, 1)
 daily_loss_limit = st.sidebar.number_input("每日亏损阈值（%）", min_value=0.5, value=2.0, step=0.5)
 weekly_loss_limit = st.sidebar.number_input("每周亏损阈值（%）", min_value=1.0, value=5.0, step=0.5)
 
 # ========================= Data Loaders =========================
+@st.cache_data(ttl=900)
+def load_coingecko_ohlc_robust(symbol: str, interval: str):
+    url = f"https://api.coingecko.com/api/v3/coins/{symbol}/ohlc"
+    params = {"vs_currency": "usd", "days": "max"}
+    r = requests.get(url, params=params, timeout=20)
+    r.raise_for_status()
+    data = r.json()
+    if not data: return pd.DataFrame()
+    rows = [(pd.to_datetime(x[0], unit="ms"), x[1],x[2],x[3],x[4],0.0) for x in data]
+    return pd.DataFrame(rows, columns=["Date","Open","High","Low","Close","Volume"]).set_index("Date")
+
+@st.cache_data(ttl=900)
+def load_tokeninsight_ohlc(api_base: str, symbol: str, interval: str):
+    if not api_base:
+        return pd.DataFrame()
+    url = f"{api_base}/ohlc?symbol={symbol}&interval={interval}"
+    r = requests.get(url, timeout=20)
+    if r.status_code != 200: return pd.DataFrame()
+    data = r.json().get("data", [])
+    if not data: return pd.DataFrame()
+    rows = [(pd.to_datetime(d["ts"], unit="ms"), d["o"],d["h"],d["l"],d["c"],d.get("v",0)) for d in data]
+    return pd.DataFrame(rows, columns=["Date","Open","High","Low","Close","Volume"]).set_index("Date")
+
+@st.cache_data(ttl=900)
+def load_okx_public(symbol: str, interval: str, base_url: str=""):
+    base = base_url if base_url else "https://www.okx.com"
+    url = f"{base}/api/v5/market/candles?instId={symbol}&bar={interval}&limit=1000"
+    r = requests.get(url, timeout=20)
+    r.raise_for_status()
+    data = r.json().get("data", [])
+    if not data: return pd.DataFrame()
+    rows = []
+    for k in data:
+        ts = int(k[0])
+        o,h,l,c,v = map(float, k[1:6])
+        rows.append((pd.to_datetime(ts, unit="ms"), o,h,l,c,v))
+    return pd.DataFrame(rows, columns=["Date","Open","High","Low","Close","Volume"]).set_index("Date")
+
 @st.cache_data(ttl=900)
 def load_binance_public(symbol: str, interval: str):
     url = "https://api.binance.com/api/v3/klines"
@@ -107,7 +144,11 @@ def load_binance_public(symbol: str, interval: str):
         rows.append((pd.to_datetime(ts, unit="ms"), o,h,l,c,v))
     return pd.DataFrame(rows, columns=["Date","Open","High","Low","Close","Volume"]).set_index("Date")
 
-# ... 其余 load_xxx 函数保持不变 ...
+@st.cache_data(ttl=900)
+def load_yf(symbol: str, interval: str):
+    df = yf.download(symbol, period="max", interval=interval)
+    if df.empty: return pd.DataFrame()
+    return df.rename(columns={"Open":"Open","High":"High","Low":"Low","Close":"Close","Volume":"Volume"})
 
 def load_router(source, symbol, interval_sel, api_base=""):
     if source == "CoinGecko（免API）":
@@ -125,25 +166,60 @@ def load_router(source, symbol, interval_sel, api_base=""):
 df = load_router(source, symbol, interval, api_base)
 
 # ========================= TradingView 风格图表 =========================
-st.subheader(f"🕯️ K线（{symbol} / {source} / {interval}）")
-fig = go.Figure()
-fig.add_trace(go.Candlestick(
-    x=df.index, open=df["Open"], high=df["High"], low=df["Low"], close=df["Close"], name="K线"
-))
+if not df.empty:
+    st.subheader(f"🕯️ K线（{symbol} / {source} / {interval}）")
+    fig = go.Figure()
+    fig.add_trace(go.Candlestick(
+        x=df.index, open=df["Open"], high=df["High"], low=df["Low"], close=df["Close"], name="K线"
+    ))
 
-# 叠加指标 ... （保持原代码）
+    # 成交量
+    fig.add_trace(go.Bar(x=df.index, y=df["Volume"], name="Volume", yaxis="y2", opacity=0.3))
 
-fig.update_layout(
-    xaxis_rangeslider_visible=False,
-    height=900,
-    hovermode="x unified",
-    dragmode="pan",  # ✅ 左键平移
-    newshape=dict(line_color="cyan"),  # ✅ 工具栏绘制线/矩形/水平线
-    yaxis=dict(domain=[0.58, 1.0], title="价格", fixedrange=False),
-    yaxis2=dict(domain=[0.45, 0.57], title="成交量", showgrid=False),
-    yaxis3=dict(domain=[0.25, 0.44], title="MACD", showgrid=False),
-    yaxis4=dict(domain=[0.0, 0.24], title="RSI", showgrid=False, range=[0,100]),
-)
-st.plotly_chart(fig, use_container_width=True)
+    # MA
+    if use_ma:
+        for p in [int(x) for x in ma_periods_text.split(",") if x.strip().isdigit()]:
+            df[f"MA{p}"] = df["Close"].rolling(p).mean()
+            fig.add_trace(go.Scatter(x=df.index, y=df[f"MA{p}"], mode="lines", name=f"MA{p}"))
 
-# ========================= 其余逻辑（策略建议 / 胜率统计 / 风控面板 / 组合风险暴露）保持不变 =========================
+    # EMA
+    if use_ema:
+        for p in [int(x) for x in ema_periods_text.split(",") if x.strip().isdigit()]:
+            df[f"EMA{p}"] = df["Close"].ewm(span=p).mean()
+            fig.add_trace(go.Scatter(x=df.index, y=df[f"EMA{p}"], mode="lines", name=f"EMA{p}"))
+
+    # BOLL
+    if use_boll:
+        ma = df["Close"].rolling(boll_window).mean()
+        std = df["Close"].rolling(boll_window).std()
+        up, down = ma + boll_std*std, ma - boll_std*std
+        fig.add_trace(go.Scatter(x=df.index, y=up, mode="lines", name="BOLL上轨"))
+        fig.add_trace(go.Scatter(x=df.index, y=ma, mode="lines", name="BOLL中轨"))
+        fig.add_trace(go.Scatter(x=df.index, y=down, mode="lines", name="BOLL下轨"))
+
+    # MACD
+    if use_macd:
+        macd = ta.trend.MACD(df["Close"], macd_fast, macd_slow, macd_sig)
+        fig.add_trace(go.Bar(x=df.index, y=macd.macd_diff(), name="MACD Histogram", yaxis="y3"))
+        fig.add_trace(go.Scatter(x=df.index, y=macd.macd(), mode="lines", name="MACD", yaxis="y3"))
+        fig.add_trace(go.Scatter(x=df.index, y=macd.macd_signal(), mode="lines", name="Signal", yaxis="y3"))
+
+    # RSI
+    if use_rsi:
+        rsi = ta.momentum.RSIIndicator(df["Close"], rsi_window).rsi()
+        fig.add_trace(go.Scatter(x=df.index, y=rsi, mode="lines", name="RSI", yaxis="y4"))
+
+    fig.update_layout(
+        xaxis_rangeslider_visible=False,
+        height=900,
+        hovermode="x unified",
+        dragmode="pan",
+        newshape=dict(line_color="cyan"),
+        yaxis=dict(domain=[0.58, 1.0], title="价格", fixedrange=False),
+        yaxis2=dict(domain=[0.45, 0.57], title="成交量", showgrid=False),
+        yaxis3=dict(domain=[0.25, 0.44], title="MACD", showgrid=False),
+        yaxis4=dict(domain=[0.0, 0.24], title="RSI", showgrid=False, range=[0,100]),
+    )
+    st.plotly_chart(fig, use_container_width=True)
+else:
+    st.warning("❌ 数据加载失败，请检查数据源/参数")
