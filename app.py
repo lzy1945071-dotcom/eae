@@ -13,14 +13,6 @@ from streamlit_autorefresh import st_autorefresh
 st.set_page_config(page_title="Legend Quant Terminal Elite v3 FIX10", layout="wide")
 st.title("💎 Legend Quant Terminal Elite v3 FIX10")
 
-# ========================= Sidebar: 刷新功能 =========================
-st.sidebar.header("🔄 数据刷新设置")
-manual_refresh = st.sidebar.button("手动刷新 K线图")
-auto_refresh_sec = st.sidebar.number_input("自动刷新间隔（秒，0 表示关闭）", min_value=0, value=0, step=1)
-
-if auto_refresh_sec > 0:
-    st_autorefresh(interval=auto_refresh_sec * 1000, key="auto_refresh")
-
 # ========================= Sidebar: 数据来源与标的 =========================
 st.sidebar.header("① 数据来源与标的")
 source = st.sidebar.selectbox(
@@ -46,11 +38,61 @@ if source in ["OKX API（可填API基址）", "TokenInsight API 模式（可填A
             api_secret = st.text_input("OKX-API-SECRET", value="", type="password")
             api_passphrase = st.text_input("OKX-API-PASSPHRASE", value="", type="password")
 
-# 标的与周期
 if source in ["CoinGecko（免API）", "TokenInsight API 模式（可填API基址）"]:
     symbol = st.sidebar.selectbox("个标（CoinGecko coin_id）", ["bitcoin","ethereum","solana","dogecoin","cardano","ripple","polkadot"], index=1)
     combo_symbols = st.sidebar.multiselect("组合标（可多选，默认留空）", ["bitcoin","ethereum","solana","dogecoin","cardano","ripple","polkadot"], default=[])
     interval = st.sidebar.selectbox("K线周期（映射）", ["1d","1w","1M","max"], index=0, help="CoinGecko/TokenInsight 免费接口多为日级/周级聚合")
+elif source in ["OKX 公共行情（免API）", "OKX API（可填API基址）"]:
+    symbol = st.sidebar.selectbox("个标（OKX InstId）", ["BTC-USDT","ETH-USDT","SOL-USDT","XRP-USDT","DOGE-USDT"], index=1)
+    combo_symbols = st.sidebar.multiselect("组合标（可多选，默认留空）", ["BTC-USDT","ETH-USDT","SOL-USDT","XRP-USDT","DOGE-USDT"], default=[])
+    interval = st.sidebar.selectbox("K线周期", ["1m","3m","5m","15m","30m","1H","2H","4H","6H","12H","1D","1W","1M"], index=10)
+else:
+    symbol = st.sidebar.selectbox("个标（美股/A股）", ["AAPL","TSLA","MSFT","NVDA","600519.SS","000001.SS"], index=0)
+    combo_symbols = st.sidebar.multiselect("组合标（可多选，默认留空）", ["AAPL","TSLA","MSFT","NVDA","600519.SS","000001.SS"], default=[])
+    interval = st.sidebar.selectbox("K线周期", ["1d","1wk","1mo"], index=0)
+
+# ========================= Data Loaders =========================
+def _cg_days_from_interval(sel: str) -> str:
+    if sel.startswith("1d"): return "180"
+    if sel.startswith("1w"): return "365"
+    if sel.startswith("1M"): return "365"
+    if sel.startswith("max"): return "max"
+    return "180"
+
+@st.cache_data(ttl=900)
+def load_coingecko_ohlc_robust(coin_id: str, interval_sel: str):
+    days = _cg_days_from_interval(interval_sel)
+    try:
+        url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/ohlc"
+        r = requests.get(url, params={"vs_currency": "usd", "days": days}, timeout=20)
+        if r.status_code == 200:
+            arr = r.json()
+            if isinstance(arr, list) and len(arr) > 0:
+                rows = [(pd.to_datetime(x[0], unit="ms"), float(x[1]), float(x[2]), float(x[3]), float(x[4])) for x in arr]
+                return pd.DataFrame(rows, columns=["Date", "Open", "High", "Low", "Close"]).set_index("Date")
+    except Exception:
+        pass
+    try:
+        url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart"
+        params = {"vs_currency":"usd", "days": days if days != "max" else "365"}
+        r = requests.get(url, params=params, timeout=20)
+        r.raise_for_status()
+        data = r.json()
+        prices = data.get("prices", [])
+        if prices:
+            s = pd.Series([float(p[1]) for p in prices], index=pd.to_datetime([int(p[0]) for p in prices], unit="ms"), name="price").sort_index()
+            ohlc = s.resample("1D").agg(["first","max","min","last"]).dropna()
+            ohlc.columns = ["Open","High","Low","Close"]
+            return ohlc
+    except Exception:
+        pass
+    return pd.DataFrame()
+
+# 标的与周期
+if source in ["CoinGecko（免API）", "TokenInsight API 模式（可填API基址）"]:
+    symbol = st.sidebar.selectbox("个标（CoinGecko coin_id）", ["bitcoin","ethereum","solana","dogecoin","cardano","ripple","polkadot"], index=1)
+    combo_symbols = st.sidebar.multiselect("组合标（可多选，默认留空）", ["bitcoin","ethereum","solana","dogecoin","cardano","ripple","polkadot"], default=[])
+    interval = st.sidebar.selectbox("K线周期（映射）", ["1d","1w","1M","max"], index=0, help="CoinGecko/TokenInsight 免费接口多为日级/周级聚合，不提供细分分钟线。")
 elif source in ["OKX 公共行情（免API）", "OKX API（可填API基址）"]:
     symbol = st.sidebar.selectbox("个标（OKX InstId）", ["BTC-USDT","ETH-USDT","SOL-USDT","XRP-USDT","DOGE-USDT"], index=1)
     combo_symbols = st.sidebar.multiselect("组合标（可多选，默认留空）", ["BTC-USDT","ETH-USDT","SOL-USDT","XRP-USDT","DOGE-USDT"], default=[])
@@ -177,30 +219,24 @@ def load_tokeninsight_ohlc(api_base_url: str, coin_id: str, interval_sel: str):
 def load_okx_public(instId: str, bar: str, base_url: str = ""):
     url = (base_url.rstrip('/') if base_url else "https://www.okx.com") + "/api/v5/market/candles"
     params = {"instId": instId, "bar": bar, "limit": "1000"}
-    try:
-        r = requests.get(url, params=params, timeout=20)
-        r.raise_for_status()
-        data = r.json().get("data", [])
-        if not data: return pd.DataFrame()
-        rows = []
-        for a in reversed(data):
-            ts = int(a[0]); o=float(a[1]); h=float(a[2]); l=float(a[3]); c=float(a[4]); v=float(a[5])
-            rows.append((pd.to_datetime(ts, unit="ms"), o,h,l,c,v))
-        return pd.DataFrame(rows, columns=["Date","Open","High","Low","Close","Volume"]).set_index("Date")
-    except Exception:
-        return pd.DataFrame()
+    r = requests.get(url, params=params, timeout=20)
+    r.raise_for_status()
+    data = r.json().get("data", [])
+    if not data: return pd.DataFrame()
+    rows = []
+    for a in reversed(data):
+        ts = int(a[0]); o=float(a[1]); h=float(a[2]); l=float(a[3]); c=float(a[4]); v=float(a[5])
+        rows.append((pd.to_datetime(ts, unit="ms"), o,h,l,c,v))
+    return pd.DataFrame(rows, columns=["Date","Open","High","Low","Close","Volume"]).set_index("Date")
 
 @st.cache_data(ttl=900)
 def load_yf(symbol: str, interval_sel: str):
     interval_map = {"1d":"1d","1wk":"1wk","1mo":"1mo"}
     interval = interval_map.get(interval_sel, "1d")
-    try:
-        df = yf.download(symbol, period="5y", interval=interval, progress=False, auto_adjust=False)
-        if not df.empty:
-            df = df[["Open","High","Low","Close","Volume"]].dropna()
-        return df
-    except Exception:
-        return pd.DataFrame()
+    df = yf.download(symbol, period="5y", interval=interval, progress=False, auto_adjust=False)
+    if not df.empty:
+        df = df[["Open","High","Low","Close","Volume"]].dropna()
+    return df
 
 def load_router(source, symbol, interval_sel, api_base=""):
     if source == "CoinGecko（免API）":
@@ -230,10 +266,7 @@ def add_indicators(df):
     out = df.copy()
     close, high, low = out["Close"], out["High"], out["Low"]
     vol = out["Volume"] if "Volume" in out.columns else pd.Series(np.nan, index=out.index, name="Volume")
-    if "Volume" not in out.columns: 
-        out["Volume"] = np.nan
-    else:
-        vol = out["Volume"]
+    if "Volume" not in out.columns: out["Volume"] = np.nan
 
     # MA / EMA
     if use_ma:
@@ -254,15 +287,13 @@ def add_indicators(df):
         out["MACD"], out["MACD_signal"], out["MACD_hist"] = macd_ind.macd(), macd_ind.macd_signal(), macd_ind.macd_diff()
 
     # RSI
-    if use_rsi: 
-        out["RSI"] = ta.momentum.RSIIndicator(close, window=int(rsi_window)).rsi()
+    if use_rsi: out["RSI"] = ta.momentum.RSIIndicator(close, window=int(rsi_window)).rsi()
 
     # ATR
-    if use_atr: 
-        out["ATR"] = ta.volatility.AverageTrueRange(high, low, close, window=int(atr_window)).average_true_range()
+    if use_atr: out["ATR"] = ta.volatility.AverageTrueRange(high, low, close, window=int(atr_window)).average_true_range()
 
     # ===== 新增指标 =====
-    if use_vwap and not vol.isna().all():
+    if use_vwap:
         vwap = ta.volume.VolumeWeightedAveragePrice(high=high, low=low, close=close, volume=vol, window=14)
         out["VWAP"] = vwap.volume_weighted_average_price()
     if use_adx:
@@ -278,13 +309,13 @@ def add_indicators(df):
         srsi = ta.momentum.StochRSIIndicator(close=close, window=int(stochrsi_window))
         out["StochRSI_K"] = srsi.stochrsi_k()
         out["StochRSI_D"] = srsi.stochrsi_d()
-    if use_mfi and not vol.isna().all():
+    if use_mfi:
         mfi = ta.volume.MFIIndicator(high=high, low=low, close=close, volume=vol, window=int(mfi_window))
         out["MFI"] = mfi.money_flow_index()
     if use_cci:
         cci = ta.trend.CCIIndicator(high=high, low=low, close=close, window=int(cci_window))
         out["CCI"] = cci.cci()
-    if use_obv and not vol.isna().all():
+    if use_obv:
         obv = ta.volume.OnBalanceVolumeIndicator(close=close, volume=vol)
         out["OBV"] = obv.on_balance_volume()
     if use_psar:
@@ -306,17 +337,14 @@ fig.add_trace(go.Candlestick(x=dfi.index, open=dfi["Open"], high=dfi["High"], lo
 if use_ma:
     for p in parse_int_list(ma_periods_text):
         col = f"MA{p}"
-        if col in dfi.columns: 
-            fig.add_trace(go.Scatter(x=dfi.index, y=dfi[col], mode="lines", name=col, yaxis="y"))
+        if col in dfi.columns: fig.add_trace(go.Scatter(x=dfi.index, y=dfi[col], mode="lines", name=col, yaxis="y"))
 if use_ema:
     for p in parse_int_list(ema_periods_text):
         col = f"EMA{p}"
-        if col in dfi.columns: 
-            fig.add_trace(go.Scatter(x=dfi.index, y=dfi[col], mode="lines", name=col, yaxis="y"))
+        if col in dfi.columns: fig.add_trace(go.Scatter(x=dfi.index, y=dfi[col], mode="lines", name=col, yaxis="y"))
 if use_boll:
     for col,nm in [("BOLL_U","BOLL 上轨"),("BOLL_M","BOLL 中轨"),("BOLL_L","BOLL 下轨")]:
-        if col in dfi.columns: 
-            fig.add_trace(go.Scatter(x=dfi.index, y=dfi[col], mode="lines", name=nm, yaxis="y"))
+        if col in dfi.columns: fig.add_trace(go.Scatter(x=dfi.index, y=dfi[col], mode="lines", name=nm, yaxis="y"))
 
 vol_colors = np.where(dfi["Close"] >= dfi["Open"], "rgba(38,166,91,0.7)", "rgba(239,83,80,0.7)")
 if "Volume" in dfi.columns and not dfi["Volume"].isna().all():
@@ -349,12 +377,8 @@ st.plotly_chart(fig, use_container_width=True, config={
 st.markdown("---")
 st.subheader("🧭 实时策略建议（非投资建议）")
 
-last = dfi.dropna().iloc[-1] if not dfi.empty else None
-if last is None:
-    st.warning("数据不足，无法生成策略建议")
-    price = 0
-else:
-    price = float(last["Close"])
+last = dfi.dropna().iloc[-1]
+price = float(last["Close"])
 
 # 1) 趋势/动能评分
 score = 0; reasons = []
@@ -398,8 +422,7 @@ resist_zone = (dfi["Close"].iloc[-N:].max(), recent_high.max())
 if use_atr and "ATR" in dfi.columns and not np.isnan(last["ATR"]):
     atr_val = float(last["ATR"])
 else:
-    atr_val = float(dfi["Close"].pct_change().rolling(14).std().iloc[-1] * price) if len(dfi) > 14 else price * 0.01
-
+    atr_val = float(dfi["Close"].pct_change().rolling(14).std().iloc[-1] * price)
 tp = price + 2.0*atr_val if decision != "减仓/离场" else price - 2.0*atr_val
 sl = price - 1.2*atr_val if decision != "减仓/离场" else price + 1.2*atr_val
 
@@ -441,13 +464,11 @@ def simple_backtest(df):
     equity = (1+pd.Series(strat_ret, index=df.index)).cumprod()
     pnl = []
     last_side = 0; entry_price = None
-    for i, (side, p) in enumerate(zip(pos, df["Close"].values)):
-        if side != 0 and last_side == 0:
+    for side,p in zip(pos, df["Close"].values):
+        if side!=0 and last_side==0:
             entry_price = p; last_side = side
-        elif side == 0 and last_side != 0 and entry_price is not None:
+        elif side==0 and last_side!=0 and entry_price is not None:
             pnl.append((p/entry_price-1)*last_side); last_side=0; entry_price=None
-        elif i == len(pos) - 1 and last_side != 0 and entry_price is not None:
-            pnl.append((p/entry_price-1)*last_side)
     pnl = pd.Series(pnl) if len(pnl)>0 else pd.Series(dtype=float)
     win_rate = float((pnl>0).mean()) if len(pnl)>0 else 0.0
     roll_max = equity.cummax(); mdd = float(((roll_max - equity)/roll_max).max()) if len(equity)>0 else 0.0
@@ -473,7 +494,7 @@ else:
 # ========================= 风控面板（结果） =========================
 st.markdown("---")
 st.subheader("🛡️ 风控面板（结果）")
-atr_for_pos = atr_val if atr_val and atr_val>0 else (dfi["Close"].pct_change().rolling(14).std().iloc[-1]*price) if len(dfi) > 14 else price * 0.01
+atr_for_pos = atr_val if atr_val and atr_val>0 else (dfi["Close"].pct_change().rolling(14).std().iloc[-1]*price)
 stop_distance = atr_for_pos / max(price, 1e-9)
 risk_amount = float(account_value) * (float(risk_pct)/100.0)
 position_value = risk_amount / max(stop_distance, 1e-6) / max(int(leverage),1)
@@ -504,7 +525,7 @@ def get_close_series(sym):
 series_list = []
 for s in combo_symbols:
     se = get_close_series(s)
-    if se is not and not se.empty:
+    if se is not None and not se.empty:
         series_list.append(se)
 if series_list:
     closes = pd.concat(series_list, axis=1).dropna()
@@ -574,7 +595,7 @@ def _block_signal(df):
     if "RSI>50（强于中位）" in chosen_blocks and "RSI" in d.columns:
         conds.append(d["RSI"] > 50)
     if "RSI<30 反转做多" in chosen_blocks and "RSI" in d.columns:
-        conds.append(shift_cross_up(d["RSI"], 30))
+        conds.append(shift_cross_up(50 - (d["RSI"] - 30), 0))  # 近似表示 RSI 上穿30
     if "突破上轨（BOLL_U）" in chosen_blocks and "BOLL_U" in d.columns:
         conds.append(d["Close"] > d["BOLL_U"])
     if "回踩下轨反弹（价> BOLL_L）" in chosen_blocks and "BOLL_L" in d.columns:
@@ -586,9 +607,9 @@ def _block_signal(df):
     if "STOCH 金叉（K>D & K<80）" in chosen_blocks and all(c in d.columns for c in ["STOCH_K","STOCH_D"]):
         conds.append( (d["STOCH_K"] > d["STOCH_D"]) & (d["STOCH_K"] < 80) & (d["STOCH_D"].shift(1) >= d["STOCH_K"].shift(1)) )
     if "StochRSI 超卖反转（K<20→上穿）" in chosen_blocks and "StochRSI_K" in d.columns:
-        conds.append( shift_cross_up(d["StochRSI_K"], 20) )
+        conds.append( shift_cross_up(d["StochRSI_K"], pd.Series(20.0, index=d.index)) )
     if "CCI<-100 反转做多" in chosen_blocks and "CCI" in d.columns:
-        conds.append( shift_cross_up(d["CCI"], -100) )
+        conds.append( shift_cross_up(d["CCI"], pd.Series(-100.0, index=d.index)) )
     if "OBV 上升（OBV 斜率>0）" in chosen_blocks and "OBV" in d.columns:
         conds.append(d["OBV"].diff() > 0)
     if "PSAR 多头（价>PSAR）" in chosen_blocks and "PSAR" in d.columns:
@@ -633,8 +654,7 @@ def backtest_combo(df):
 
     entry_sig, rev_hint = _block_signal(d)
     if side == "做空":
-        entry_sig = ~entry_sig  # 做空构建：使用反向触发
-
+        entry_sig = entry_sig  # 做空构建：使用相同触发，方向为-1
     entry_idx = np.where(entry_sig.values)[0]
 
     pos = pd.Series(0, index=d.index, dtype=float)
@@ -662,7 +682,7 @@ def backtest_combo(df):
             else:
                 if use_exit_flip and rev_hint.iat[i]:
                     exit_flag = True
-                if use_atr_stop and (not np.isnan(atr_series.iat[i])) and entry_price is not None:
+                if use_atr_stop and (not np.isnan(atr_series.iat[i])):
                     atrv = float(atr_series.iat[i])
                     sl = entry_price - side_mult*atr_sl_mult*atrv
                     tp = entry_price + side_mult*atr_tp_mult*atrv
@@ -703,12 +723,7 @@ def backtest_combo(df):
         sharpe = (avg_ret/vol_ret) * math.sqrt(bars_per_year)
     else:
         sharpe = 0.0
-        
-    # 计算年化复合增长率
-    if len(equity) > 1:
-        cagr = (equity.iloc[-1] / equity.iloc[0]) ** (bars_per_year / len(equity)) - 1.0
-    else:
-        cagr = 0.0
+    cagr = (equity.iat[-1] ** (bars_per_year/max(1, len(equity))) - 1.0) if len(equity)>1 else 0.0
 
     return {
         "equity": equity,
