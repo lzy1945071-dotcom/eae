@@ -106,7 +106,7 @@ st.sidebar.markdown('''
 
 # ========================= Sidebar: ⑤ 风控参数 =========================
 st.sidebar.header("⑤ 风控参数")
-account_value = st.sidebar.number_input("账户总资金", min_value=1000.0, value=100000.0, step=1000.0)
+account_value = st.sidebar.number_input("账户总资金", min_value=1.0, value=1000.0, step=10.0)
 risk_pct = st.sidebar.slider("单笔风险（%）", 0.1, 2.0, 0.5, 0.1)
 leverage = st.sidebar.slider("杠杆倍数", 1, 10, 1, 1)
 daily_loss_limit = st.sidebar.number_input("每日亏损阈值（%）", min_value=0.5, value=2.0, step=0.5)
