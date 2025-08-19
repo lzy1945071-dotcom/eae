@@ -50,28 +50,28 @@ api_passphrase = ""
 
 
 if source in ["OKX API（可填API基址）", "TokenInsight API 模式（可填API基址）"]:
-st.sidebar.markdown("**API 连接设置**")
-api_base = st.sidebar.text_input("API 基址（留空用默认公共接口）", value="")
+    st.sidebar.markdown("**API 连接设置**")
+    api_base = st.sidebar.text_input("API 基址（留空用默认公共接口）", value="")
 if source == "OKX API（可填API基址）":
 with st.sidebar.expander("（可选）OKX API 认证信息"):
-api_key = st.text_input("OKX-API-KEY", value="", type="password")
-api_secret = st.text_input("OKX-API-SECRET", value="", type="password")
-api_passphrase = st.text_input("OKX-API-PASSPHRASE", value="", type="password")
+    api_key = st.text_input("OKX-API-KEY", value="", type="password")
+    api_secret = st.text_input("OKX-API-SECRET", value="", type="password")
+    api_passphrase = st.text_input("OKX-API-PASSPHRASE", value="", type="password")
 
 
 # ===== 在这里先定义 symbol / interval，再去 load_router =====
 if source in ["CoinGecko（免API）", "TokenInsight API 模式（可填API基址）"]:
-symbol = st.sidebar.selectbox("个标（CoinGecko coin_id）", ["bitcoin","ethereum","solana","dogecoin","cardano","ripple","polkadot"], index=1)
-combo_symbols = st.sidebar.multiselect("组合标（可多选，默认留空）", ["bitcoin","ethereum","solana","dogecoin","cardano","ripple","polkadot"], default=[])
-interval = st.sidebar.selectbox("K线周期（映射）", ["1d","1w","1M","max"], index=0, help="CoinGecko/TokenInsight 免费接口多为日级/周级聚合，不提供细分分钟线。")
+    symbol = st.sidebar.selectbox("个标（CoinGecko coin_id）", ["bitcoin","ethereum","solana","dogecoin","cardano","ripple","polkadot"], index=1)
+    combo_symbols = st.sidebar.multiselect("组合标（可多选，默认留空）", ["bitcoin","ethereum","solana","dogecoin","cardano","ripple","polkadot"], default=[])
+    interval = st.sidebar.selectbox("K线周期（映射）", ["1d","1w","1M","max"], index=0, help="CoinGecko/TokenInsight 免费接口多为日级/周级聚合，不提供细分分钟线。")
 elif source in ["OKX 公共行情（免API）", "OKX API（可填API基址）"]:
-symbol = st.sidebar.selectbox("个标（OKX InstId）", ["BTC-USDT","ETH-USDT","SOL-USDT","XRP-USDT","DOGE-USDT"], index=1)
-combo_symbols = st.sidebar.multiselect("组合标（可多选，默认留空）", ["BTC-USDT","ETH-USDT","SOL-USDT","XRP-USDT","DOGE-USDT"], default=[])
-interval = st.sidebar.selectbox("K线周期", ["1m","3m","5m","15m","30m","1H","2H","4H","6H","12H","1D","1W","1M"], index=10)
+    symbol = st.sidebar.selectbox("个标（OKX InstId）", ["BTC-USDT","ETH-USDT","SOL-USDT","XRP-USDT","DOGE-USDT"], index=1)
+    combo_symbols = st.sidebar.multiselect("组合标（可多选，默认留空）", ["BTC-USDT","ETH-USDT","SOL-USDT","XRP-USDT","DOGE-USDT"], default=[])
+    interval = st.sidebar.selectbox("K线周期", ["1m","3m","5m","15m","30m","1H","2H","4H","6H","12H","1D","1W","1M"], index=10)
 else:
-symbol = st.sidebar.selectbox("个标（美股/A股）", ["AAPL","TSLA","MSFT","NVDA","600519.SS","000001.SS"], index=0)
-combo_symbols = st.sidebar.multiselect("组合标（可多选，默认留空）", ["AAPL","TSLA","MSFT","NVDA","600519.SS","000001.SS"], default=[])
-interval = st.sidebar.selectbox("K线周期", ["1d","1wk","1mo"], index=0)
+    symbol = st.sidebar.selectbox("个标（美股/A股）", ["AAPL","TSLA","MSFT","NVDA","600519.SS","000001.SS"], index=0)
+    combo_symbols = st.sidebar.multiselect("组合标（可多选，默认留空）", ["AAPL","TSLA","MSFT","NVDA","600519.SS","000001.SS"], default=[])
+    interval = st.sidebar.selectbox("K线周期", ["1d","1wk","1mo"], index=0)
 
 
 # ========================= Data Loaders =========================
@@ -85,14 +85,14 @@ return "180"
 
 @st.cache_data(ttl=900)
 def load_coingecko_ohlc_robust(coin_id: str, interval_sel: str):
-days = _cg_days_from_interval(interval_sel)
+    days = _cg_days_from_interval(interval_sel)
 try:
-url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/ohlc"
-r = requests.get(url, params={"vs_currency": "usd", "days": days}, timeout=20)
+    url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/ohlc"
+    r = requests.get(url, params={"vs_currency": "usd", "days": days}, timeout=20)
 if r.status_code == 200:
-arr = r.json()
+    arr = r.json()
 if isinstance(arr, list) and len(arr) > 0:
-rows = [(pd.to_datetime(x[0], unit="ms"), float(x[1]), float(x[2]), float(x[3]), float(x[4])) for x in arr]
+     rows = [(pd.to_datetime(x[0], unit="ms"), float(x[1]), float(x[2]), float(x[3]), float(x[4])) for x in arr]
 return pd.DataFrame(rows, columns=["Date","Open","High","Low","Close"]).set_index("Date")
 except Exception:
 pass
