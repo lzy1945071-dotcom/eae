@@ -1,12 +1,10 @@
-# Legend Quant Terminal Elite v3 FIX8
+# Legend Quant Terminal Elite v3 FIX9
 
-增强点：
-- 更健壮的 CoinGecko 数据源（/ohlc 失败时自动回退到 /market_chart 并聚合为OHLC）
-- OKX 公共行情稳定抓取（最新在前 → 转为时间升序）
-- 指标：MA20/50、BOLL(20,2)、MACD(自适应：加密 8/21/5；股票 12/26/9)、RSI(14)、ATR(14)
-- 实时策略建议卡片 + 依据 + ATR 止盈/止损
-- 胜率/回撤/收益曲线/收益分布
-- 风控面板：仓位建议、亏损阈值预警、组合波动率配比权重
+更新内容：
+- ✅ 修复 CoinGecko：/ohlc 失败自动回退到 /market_chart 并聚合为OHLC，保证免API也能出K线
+- ✅ 左侧功能栏③：新增“顶级交易员常用指标”勾选与参数输入（MA/EMA 列表、MACD、RSI、BOLL、ATR、Stochastic、OBV）
+- ✅ 主视图：所有指标可在图例点击显示/隐藏，参数变化实时联动
+- ✅ 保留：实时策略建议卡片、简易回测统计、风控面板、组合风险暴露
 
 运行：
 ```bash
