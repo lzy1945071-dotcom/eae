@@ -1,84 +1,101 @@
-iimport streamlit as st
-index=pd.to_datetime([int(p[0]) for p in prices], unit="ms"),
-name="price"
-).sort_index()
-ohlc = s.resample("1D").agg(["first","max","min","last"]).dropna()
-ohlc.columns = ["Open","High","Low","Close"]
-return ohlc
-except Exception:
-pass
-return pd.DataFrame()
+import streamlit as st
+import pandas as pd
+import numpy as np
+import requests
+import yfinance as yf
+import plotly.graph_objects as go
+import plotly.express as px
+import ta
+import math
+from datetime import datetime
+
+
+# ========== 新增导入 ==========
+from streamlit_autorefresh import st_autorefresh
+
+
+st.set_page_config(page_title="Legend Quant Terminal Elite v3 FIX10", layout="wide")
+st.title("💎 Legend Quant Terminal Elite v3 FIX10")
+
+
+# ========================= Sidebar: 刷新功能 =========================
+st.sidebar.header("🔄 数据刷新设置")
+manual_refresh = st.sidebar.button("手动刷新 K线图")
+auto_refresh_sec = st.sidebar.number_input("自动刷新间隔（秒，0 表示关闭）", min_value=0, value=0, step=1)
+
+
+if auto_refresh_sec > 0:
+st_autorefresh(interval=auto_refresh_sec * 1000, key="auto_refresh")
+
+
+# ========================= Sidebar: ① 数据来源与标的 =========================
+st.sidebar.header("① 数据来源与标的")
+source = st.sidebar.selectbox(
+"数据来源",
+[
+"OKX 公共行情（免API）",
+"CoinGecko（免API）",
+"OKX API（可填API基址）",
+"TokenInsight API 模式（可填API基址）",
+"Yahoo Finance（美股/A股）",
+],
+index=0
+)
+
+
+api_base = ""
+api_key = ""
+api_secret = ""
+api_passphrase = ""
+
+
+if source in ["OKX API（可填API基址）", "TokenInsight API 模式（可填API基址）"]:
+st.sidebar.markdown("**API 连接设置**")
+api_base = st.sidebar.text_input("API 基址（留空用默认公共接口）", value="")
+if source == "OKX API（可填API基址）":
+with st.sidebar.expander("（可选）OKX API 认证信息"):
+api_key = st.text_input("OKX-API-KEY", value="", type="password")
+api_secret = st.text_input("OKX-API-SECRET", value="", type="password")
+api_passphrase = st.text_input("OKX-API-PASSPHRASE", value="", type="password")
+
+
+# ===== 在这里先定义 symbol / interval，再去 load_router =====
+if source in ["CoinGecko（免API）", "TokenInsight API 模式（可填API基址）"]:
+symbol = st.sidebar.selectbox("个标（CoinGecko coin_id）", ["bitcoin","ethereum","solana","dogecoin","cardano","ripple","polkadot"], index=1)
+combo_symbols = st.sidebar.multiselect("组合标（可多选，默认留空）", ["bitcoin","ethereum","solana","dogecoin","cardano","ripple","polkadot"], default=[])
+interval = st.sidebar.selectbox("K线周期（映射）", ["1d","1w","1M","max"], index=0, help="CoinGecko/TokenInsight 免费接口多为日级/周级聚合，不提供细分分钟线。")
+elif source in ["OKX 公共行情（免API）", "OKX API（可填API基址）"]:
+symbol = st.sidebar.selectbox("个标（OKX InstId）", ["BTC-USDT","ETH-USDT","SOL-USDT","XRP-USDT","DOGE-USDT"], index=1)
+combo_symbols = st.sidebar.multiselect("组合标（可多选，默认留空）", ["BTC-USDT","ETH-USDT","SOL-USDT","XRP-USDT","DOGE-USDT"], default=[])
+interval = st.sidebar.selectbox("K线周期", ["1m","3m","5m","15m","30m","1H","2H","4H","6H","12H","1D","1W","1M"], index=10)
+else:
+symbol = st.sidebar.selectbox("个标（美股/A股）", ["AAPL","TSLA","MSFT","NVDA","600519.SS","000001.SS"], index=0)
+combo_symbols = st.sidebar.multiselect("组合标（可多选，默认留空）", ["AAPL","TSLA","MSFT","NVDA","600519.SS","000001.SS"], default=[])
+interval = st.sidebar.selectbox("K线周期", ["1d","1wk","1mo"], index=0)
+
+
+# ========================= Data Loaders =========================
+def _cg_days_from_interval(sel: str) -> str:
+if sel.startswith("1d"): return "180"
+if sel.startswith("1w"): return "365"
+if sel.startswith("1M"): return "365"
+if sel.startswith("max"): return "max"
+return "180"
 
 
 @st.cache_data(ttl=900)
-def load_tokeninsight_ohlc(api_base_url: str, coin_id: str, interval_sel: str):
-if not api_base_url:
-return load_coingecko_ohlc_robust(coin_id, interval_sel)
+def load_coingecko_ohlc_robust(coin_id: str, interval_sel: str):
+days = _cg_days_from_interval(interval_sel)
 try:
-url = f"{api_base_url.rstrip('/')}/ohlc"
-r = requests.get(url, params={"symbol": coin_id, "period": "1d"}, timeout=15)
-r.raise_for_status()
-data = r.json()
-if isinstance(data, list) and data:
-rows = [(pd.to_datetime(x[0], unit="ms"), float(x[1]), float(x[2]), float(x[3]), float(x[4])) for x in data]
+url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/ohlc"
+r = requests.get(url, params={"vs_currency": "usd", "days": days}, timeout=20)
+if r.status_code == 200:
+arr = r.json()
+if isinstance(arr, list) and len(arr) > 0:
+rows = [(pd.to_datetime(x[0], unit="ms"), float(x[1]), float(x[2]), float(x[3]), float(x[4])) for x in arr]
 return pd.DataFrame(rows, columns=["Date","Open","High","Low","Close"]).set_index("Date")
 except Exception:
 pass
-return load_coingecko_ohlc_robust(coin_id, interval_sel)
-
-
-@st.cache_data(ttl=900)
-def load_okx_public(instId: str, bar: str, base_url: str = ""):
-url = (base_url.rstrip('/') if base_url else "https://www.okx.com") + "/api/v5/market/candles"
-params = {"instId": instId, "bar": bar, "limit": "1000"}
-r = requests.get(url, params=params, timeout=20)
-r.raise_for_status()
-data = r.json().get("data", [])
-if not data: return pd.DataFrame()
-rows = []
-for a in reversed(data):
-ts = int(a[0]); o=float(a[1]); h=float(a[2]); l=float(a[3]); c=float(a[4]); v=float(a[5])
-rows.append((pd.to_datetime(ts, unit="ms"), o,h,l,c,v))
-return pd.DataFrame(rows, columns=["Date","Open","High","Low","Close","Volume"]).set_index("Date")
-
-
-@st.cache_data(ttl=900)
-def load_yf(symbol: str, interval_sel: str):
-interval_map = {"1d":"1d","1wk":"1wk","1mo":"1mo"}
-interval = interval_map.get(interval_sel, "1d")
-df = yf.download(symbol, period="5y", interval=interval, progress=False, auto_adjust=False)
-if not df.empty:
-df = df[["Open","High","Low","Close","Volume"]].dropna()
-return df
-
-
-def load_router(source, symbol, interval_sel, api_base=""):
-if source == "CoinGecko（免API）":
-return load_coingecko_ohlc_robust(symbol, interval_sel)
-elif source == "TokenInsight API 模式（可填API基址）":
-return load_tokeninsight_ohlc(api_base, symbol, interval_sel)
-elif source in ["OKX 公共行情（免API）", "OKX API（可填API基址）"]:
-base = api_base if source == "OKX API（可填API基址）" else ""
-return load_okx_public(symbol, interval_sel, base_url=base)
-else:
-return load_yf(symbol, interval_sel)
-
-
-# ===== 在这里再调用 load_router =====
-df = load_router(source, symbol, interval, api_base)
-
-
-# 强制刷新：手动刷新时清除缓存
-if manual_refresh:
-load_coingecko_ohlc_robust.clear()
-load_tokeninsight_ohlc.clear()
-load_okx_public.clear()
-load_yf.clear()
-df = load_router(source, symbol, interval, api_base)
-
-
-if df.empty or not set(["Open","High","Low","Close"]).issubset(df.columns):
-st.error("数据为空或字段缺失：请更换数据源/周期，或稍后重试（免费源可能限流）。")
 st.stop()
 # 标的与周期
 if source in ["CoinGecko（免API）", "TokenInsight API 模式（可填API基址）"]:
