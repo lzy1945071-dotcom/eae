@@ -1,8 +1,0 @@
-streamlit
-pandas
-numpy
-requests
-plotly
-ta
-okx
-yfinance
