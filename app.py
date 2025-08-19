@@ -25,7 +25,7 @@ auto_refresh_sec = st.sidebar.number_input("自动刷新间隔（秒，0 表示�
 
 
 if auto_refresh_sec > 0:
-st_autorefresh(interval=auto_refresh_sec * 1000, key="auto_refresh")
+    st_autorefresh(interval=auto_refresh_sec * 1000, key="auto_refresh")
 
 
 # ========================= Sidebar: ① 数据来源与标的 =========================
