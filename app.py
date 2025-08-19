@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import yfinance as yf
 import requests
-import datetime
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
@@ -12,7 +11,6 @@ from plotly.subplots import make_subplots
 
 def get_data(source, symbol, interval, api_url=None):
     if source == "CoinGecko":
-        # 默认日线，回退到 market_chart
         url = f"https://api.coingecko.com/api/v3/coins/{symbol}/market_chart"
         params = {"vs_currency": "usd", "days": "90", "interval": "daily"}
         r = requests.get(url, params=params)
@@ -28,7 +26,6 @@ def get_data(source, symbol, interval, api_url=None):
         return df[["time", "Open", "High", "Low", "Close", "Volume"]]
 
     elif source == "TokenInsight":
-        # 占位，示例用 CoinGecko 数据代替
         return get_data("CoinGecko", symbol, interval)
 
     elif source == "OKX API":
@@ -38,7 +35,6 @@ def get_data(source, symbol, interval, api_url=None):
         try:
             r = requests.get(api_url)
             data = r.json()
-            # TODO: 按 OKX K线接口格式解析
             return pd.DataFrame()
         except:
             return pd.DataFrame()
@@ -103,7 +99,6 @@ def strategy_suggestion(df):
     min_p, max_p = df["Close"].min(), df["Close"].max()
     pct = (current_price - min_p) / (max_p - min_p + 1e-6) * 100
 
-    # 支撑/阻力：简单取分位数
     support = df["Close"].quantile(0.2)
     resistance = df["Close"].quantile(0.8)
 
@@ -136,9 +131,33 @@ api_url = None
 if source in ["OKX API", "TokenInsight API"]:
     api_url = st.sidebar.text_input("请输入 API 地址")
 
-# 功能② 个标 / 组合标
-symbol = st.sidebar.text_input("② 输入个标 (股票代码/币种ID)", "eth")
-portfolio = st.sidebar.text_input("② 输入组合标 (可选)", "")
+# 功能② 个标选择（下拉 + 手写输入）
+default_symbols = {
+    "CoinGecko": ["bitcoin", "ethereum", "dogecoin"],
+    "TokenInsight": ["bitcoin", "ethereum"],
+    "美股": ["AAPL", "TSLA", "MSFT", "AMZN"],
+    "A股": ["600519.SS", "000001.SZ", "601318.SS"],
+    "OKX API": ["BTC-USDT", "ETH-USDT"],
+    "TokenInsight API": ["btc", "eth"],
+}
+options = default_symbols.get(source, ["eth"])
+selected = st.sidebar.selectbox("② 选择个标 (下拉)", options)
+manual_input = st.sidebar.text_input("② 或手动输入个标", "")
+symbol = manual_input if manual_input.strip() != "" else selected
+
+# 功能② 组合标选择（下拉 + 手写输入）
+default_portfolios = {
+    "CoinGecko": ["top10", "defi", "layer1"],
+    "TokenInsight": ["ti10", "defi"],
+    "美股": ["^GSPC", "^DJI", "QQQ"],
+    "A股": ["000300.SS", "000905.SS"],
+    "OKX API": ["BTC-ETH", "BTC-ETH-SOL"],
+    "TokenInsight API": ["ti_top", "ti_alt"],
+}
+portfolio_options = default_portfolios.get(source, [])
+portfolio_selected = st.sidebar.selectbox("② 选择组合标 (下拉)", portfolio_options)
+portfolio_manual = st.sidebar.text_input("② 或手动输入组合标", "")
+portfolio = portfolio_manual if portfolio_manual.strip() != "" else portfolio_selected
 
 # 功能③ 周期
 interval = st.sidebar.selectbox("③ 选择周期", 
@@ -158,31 +177,24 @@ elif source == "A股":
 df = get_data(source, symbol, interval, api_url=api_url)
 
 if not df.empty:
-    # 加指标
     df = add_ma(df, 20)
     df = add_rsi(df, 14)
     df = add_macd(df)
 
-    # 绘图
     fig = make_subplots(rows=2, cols=1, shared_xaxes=True,
                         row_heights=[0.7, 0.3], vertical_spacing=0.05)
 
-    # K线
     fig.add_trace(go.Candlestick(x=df["time"], open=df["Open"], high=df["High"],
                                  low=df["Low"], close=df["Close"], name="K线"),
                   row=1, col=1)
-    # 成交量
     fig.add_trace(go.Bar(x=df["time"], y=df["Volume"], name="成交量", marker_color="lightblue"),
                   row=2, col=1)
-    # 移动平均线
     fig.add_trace(go.Scatter(x=df["time"], y=df["MA20"], mode="lines", name="MA20"),
                   row=1, col=1)
 
     fig.update_layout(xaxis_rangeslider_visible=False, template="plotly_white")
-
     st.plotly_chart(fig, use_container_width=True)
 
-    # 策略建议
     suggestion = strategy_suggestion(df)
     st.subheader("📌 实时策略建议")
     st.write(f"**当前价**: {suggestion['current_price']:.2f}")
