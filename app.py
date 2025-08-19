@@ -1,4 +1,4 @@
-# app.py — Legend Quant Terminal Elite v3 FIX10 (TV风格 + MACD副图 + 实时策略增强 + API源入口)
+# app.py — Legend Quant Terminal Elite v3 FIX10 (TV风格 + MACD副图 + 实时策略增强 + API源入口 + 策略组合评估)
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -7,6 +7,8 @@ import yfinance as yf
 import plotly.graph_objects as go
 import plotly.express as px
 import ta
+import math
+from datetime import datetime
 
 st.set_page_config(page_title="Legend Quant Terminal Elite v3 FIX10", layout="wide")
 st.title("💎 Legend Quant Terminal Elite v3 FIX10")
@@ -16,8 +18,9 @@ st.sidebar.header("① 数据来源与标的")
 source = st.sidebar.selectbox(
     "数据来源",
     [
-        "CoinGecko（免API）",
+        # 调整顺序：OKX 免API 第一位；CoinGecko 第二位（其余保持）
         "OKX 公共行情（免API）",
+        "CoinGecko（免API）",
         "OKX API（可填API基址）",
         "TokenInsight API 模式（可填API基址）",
         "Yahoo Finance（美股/A股）",
@@ -35,7 +38,6 @@ if source in ["OKX API（可填API基址）", "TokenInsight API 模式（可填A
     api_base = st.sidebar.text_input("API 基址（留空用默认公共接口）", value="")
     if source == "OKX API（可填API基址）":
         with st.sidebar.expander("（可选）OKX API 认证信息"):
-            # 维持与你原文件一致的写法（在 expander 块内使用 st.* 组件）
             api_key = st.text_input("OKX-API-KEY", value="", type="password")
             api_secret = st.text_input("OKX-API-SECRET", value="", type="password")
             api_passphrase = st.text_input("OKX-API-PASSPHRASE", value="", type="password")
@@ -56,36 +58,49 @@ else:
 
 # ========================= Sidebar: ③ 指标与参数（顶级交易员常用） =========================
 st.sidebar.header("③ 指标与参数（顶级交易员常用）")
-# MA / EMA
+
+# 原有设置（不删减），并按常用默认勾选增强：EMA/VWAP/ADX 默认 True
 use_ma = st.sidebar.checkbox("MA（简单均线）", True)
 ma_periods_text = st.sidebar.text_input("MA 周期（逗号分隔）", value="20,50")
-use_ema = st.sidebar.checkbox("EMA（指数均线）", False)
+use_ema = st.sidebar.checkbox("EMA（指数均线）", True)  # 默认改为 True（顶级常用：EMA200）
 ema_periods_text = st.sidebar.text_input("EMA 周期（逗号分隔）", value="200")
-
-# Bollinger
 use_boll = st.sidebar.checkbox("布林带（BOLL）", False)
 boll_window = st.sidebar.number_input("BOLL 窗口", min_value=5, value=20, step=1)
 boll_std = st.sidebar.number_input("BOLL 标准差倍数", min_value=1.0, value=2.0, step=0.5)
-
-# MACD（要求默认 12/26/9）
 use_macd = st.sidebar.checkbox("MACD（副图）", True)
 macd_fast = st.sidebar.number_input("MACD 快线", min_value=2, value=12, step=1)
 macd_slow = st.sidebar.number_input("MACD 慢线", min_value=5, value=26, step=1)
 macd_sig = st.sidebar.number_input("MACD 信号线", min_value=2, value=9, step=1)
-
-# RSI（副图）
 use_rsi = st.sidebar.checkbox("RSI（副图）", True)
 rsi_window = st.sidebar.number_input("RSI 窗口", min_value=5, value=14, step=1)
-
-# ATR（用于止盈止损与风控）
 use_atr = st.sidebar.checkbox("ATR（用于风险/止盈止损）", True)
 atr_window = st.sidebar.number_input("ATR 窗口", min_value=5, value=14, step=1)
+
+# ===== 新增：更多常用指标（不影响原功能） =====
+st.sidebar.markdown("**（新增）更多常用指标**")
+use_vwap = st.sidebar.checkbox("VWAP（成交量加权均价）", True)
+use_adx = st.sidebar.checkbox("ADX（趋势强度）", True)
+adx_window = st.sidebar.number_input("ADX 窗口", min_value=5, value=14, step=1)
+use_stoch = st.sidebar.checkbox("Stochastic 随机指标（副图）", False)
+stoch_k = st.sidebar.number_input("%K 窗口", min_value=3, value=14, step=1)
+stoch_d = st.sidebar.number_input("%D 平滑", min_value=1, value=3, step=1)
+stoch_smooth = st.sidebar.number_input("平滑窗口", min_value=1, value=3, step=1)
+use_stochrsi = st.sidebar.checkbox("StochRSI（副图）", False)
+stochrsi_window = st.sidebar.number_input("StochRSI 窗口", min_value=5, value=14, step=1)
+use_mfi = st.sidebar.checkbox("MFI 资金流量（副图）", False)
+mfi_window = st.sidebar.number_input("MFI 窗口", min_value=5, value=14, step=1)
+use_cci = st.sidebar.checkbox("CCI（副图）", False)
+cci_window = st.sidebar.number_input("CCI 窗口", min_value=5, value=20, step=1)
+use_obv = st.sidebar.checkbox("OBV 能量潮（副图）", False)
+use_psar = st.sidebar.checkbox("PSAR 抛物线转向", False)
+psar_step = st.sidebar.number_input("PSAR 步长", min_value=0.001, value=0.02, step=0.001, format="%.3f")
+psar_max_step = st.sidebar.number_input("PSAR 最大步长", min_value=0.01, value=0.2, step=0.01, format="%.2f")
 
 # ========================= Sidebar: ④ 参数推荐（说明） =========================
 st.sidebar.header("④ 参数推荐（说明）")
 st.sidebar.markdown('''
-**加密货币**：MACD **12/26/9**；RSI **14**（阈：90/73更宽容）；BOLL **20 ± 2σ**；MA **20/50**；EMA **200**  
-**美股**：MACD **12/26/9**；RSI **14**（阈：70/30）；MA **50/200**  
+**加密货币**：MACD **12/26/9**；RSI **14**（阈：90/73更宽容）；BOLL **20 ± 2σ**；MA **20/50**；EMA **200**；VWAP 日内/跨周期观测  
+**美股**：MACD **12/26/9**；RSI **14**（阈：70/30）；MA **50/200**；ADX>25 趋势显著  
 **A股**：MACD **10/30/9**；RSI **14**（阈：80/20）；MA **5/10/30**
 ''')
 
@@ -108,7 +123,6 @@ def _cg_days_from_interval(sel: str) -> str:
 @st.cache_data(ttl=900)
 def load_coingecko_ohlc_robust(coin_id: str, interval_sel: str):
     days = _cg_days_from_interval(interval_sel)
-    # Try /ohlc
     try:
         url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/ohlc"
         r = requests.get(url, params={"vs_currency": "usd", "days": days}, timeout=20)
@@ -116,11 +130,9 @@ def load_coingecko_ohlc_robust(coin_id: str, interval_sel: str):
             arr = r.json()
             if isinstance(arr, list) and len(arr) > 0:
                 rows = [(pd.to_datetime(x[0], unit="ms"), float(x[1]), float(x[2]), float(x[3]), float(x[4])) for x in arr]
-                df = pd.DataFrame(rows, columns=["Date","Open","High","Low","Close"]).set_index("Date")
-                return df
+                return pd.DataFrame(rows, columns=["Date","Open","High","Low","Close"]).set_index("Date")
     except Exception:
         pass
-    # Fallback /market_chart -> resample to daily OHLC
     try:
         url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart"
         params = {"vs_currency":"usd", "days": days if days != "max" else "365"}
@@ -143,24 +155,16 @@ def load_coingecko_ohlc_robust(coin_id: str, interval_sel: str):
 
 @st.cache_data(ttl=900)
 def load_tokeninsight_ohlc(api_base_url: str, coin_id: str, interval_sel: str):
-    """
-    兼容 TokenInsight API 模式（占位实现）：
-    - 若未填写 api_base_url 或请求失败，自动回退到 CoinGecko。
-    - 如需对接正式 TI 接口，请将此函数替换为对应的 K 线 API 路由与字段解析。
-    """
     if not api_base_url:
         return load_coingecko_ohlc_robust(coin_id, interval_sel)
     try:
-        # 假设存在类似 /ohlc?symbol=xxx&period=1d 的路由，仅示例
         url = f"{api_base_url.rstrip('/')}/ohlc"
         r = requests.get(url, params={"symbol": coin_id, "period": "1d"}, timeout=15)
         r.raise_for_status()
         data = r.json()
-        # 根据真实字段做解析：此处示例期望 [[ts, o,h,l,c], ...]
         if isinstance(data, list) and data:
             rows = [(pd.to_datetime(x[0], unit="ms"), float(x[1]), float(x[2]), float(x[3]), float(x[4])) for x in data]
-            df = pd.DataFrame(rows, columns=["Date","Open","High","Low","Close"]).set_index("Date")
-            return df
+            return pd.DataFrame(rows, columns=["Date","Open","High","Low","Close"]).set_index("Date")
     except Exception:
         pass
     return load_coingecko_ohlc_robust(coin_id, interval_sel)
@@ -174,7 +178,7 @@ def load_okx_public(instId: str, bar: str, base_url: str = ""):
     data = r.json().get("data", [])
     if not data: return pd.DataFrame()
     rows = []
-    for a in reversed(data):  # 最新在前，反转为升序
+    for a in reversed(data):
         ts = int(a[0]); o=float(a[1]); h=float(a[2]); l=float(a[3]); c=float(a[4]); v=float(a[5])
         rows.append((pd.to_datetime(ts, unit="ms"), o,h,l,c,v))
     return pd.DataFrame(rows, columns=["Date","Open","High","Low","Close","Volume"]).set_index("Date")
@@ -200,7 +204,6 @@ def load_router(source, symbol, interval_sel, api_base=""):
         return load_yf(symbol, interval_sel)
 
 df = load_router(source, symbol, interval, api_base)
-
 if df.empty or not set(["Open","High","Low","Close"]).issubset(df.columns):
     st.error("数据为空或字段缺失：请更换数据源/周期，或稍后重试（免费源可能限流）。")
     st.stop()
@@ -215,7 +218,8 @@ def parse_int_list(text):
 
 def add_indicators(df):
     out = df.copy()
-    close = out["Close"]; high = out["High"]; low = out["Low"]
+    close, high, low = out["Close"], out["High"], out["Low"]
+    vol = out["Volume"] if "Volume" in out.columns else pd.Series(np.nan, index=out.index, name="Volume")
     if "Volume" not in out.columns: out["Volume"] = np.nan
 
     # MA / EMA
@@ -229,24 +233,51 @@ def add_indicators(df):
     # Bollinger
     if use_boll:
         boll = ta.volatility.BollingerBands(close=close, window=int(boll_window), window_dev=float(boll_std))
-        out["BOLL_M"] = boll.bollinger_mavg()
-        out["BOLL_U"] = boll.bollinger_hband()
-        out["BOLL_L"] = boll.bollinger_lband()
+        out["BOLL_M"], out["BOLL_U"], out["BOLL_L"] = boll.bollinger_mavg(), boll.bollinger_hband(), boll.bollinger_lband()
 
     # MACD
     if use_macd:
         macd_ind = ta.trend.MACD(close, window_slow=int(macd_slow), window_fast=int(macd_fast), window_sign=int(macd_sig))
-        out["MACD"] = macd_ind.macd()
-        out["MACD_signal"] = macd_ind.macd_signal()
-        out["MACD_hist"] = macd_ind.macd_diff()
+        out["MACD"], out["MACD_signal"], out["MACD_hist"] = macd_ind.macd(), macd_ind.macd_signal(), macd_ind.macd_diff()
 
     # RSI
-    if use_rsi:
-        out["RSI"] = ta.momentum.RSIIndicator(close, window=int(rsi_window)).rsi()
+    if use_rsi: out["RSI"] = ta.momentum.RSIIndicator(close, window=int(rsi_window)).rsi()
 
     # ATR
-    if use_atr:
-        out["ATR"] = ta.volatility.AverageTrueRange(high=high, low=low, close=close, window=int(atr_window)).average_true_range()
+    if use_atr: out["ATR"] = ta.volatility.AverageTrueRange(high, low, close, window=int(atr_window)).average_true_range()
+
+    # ===== 新增指标 =====
+    if use_vwap:
+        vwap = ta.volume.VolumeWeightedAveragePrice(high=high, low=low, close=close, volume=vol, window=14)
+        out["VWAP"] = vwap.volume_weighted_average_price()
+    if use_adx:
+        adx_ind = ta.trend.ADXIndicator(high=high, low=low, close=close, window=int(adx_window))
+        out["ADX"] = adx_ind.adx()
+        out["DIP"] = adx_ind.adx_pos()
+        out["DIN"] = adx_ind.adx_neg()
+    if use_stoch:
+        stoch = ta.momentum.StochasticOscillator(high=high, low=low, close=close, window=int(stoch_k), smooth_window=int(stoch_smooth))
+        out["STOCH_K"] = stoch.stoch()
+        out["STOCH_D"] = stoch.stoch_signal() if hasattr(stoch, "stoch_signal") else out["STOCH_K"].rolling(int(stoch_d)).mean()
+    if use_stochrsi:
+        srsi = ta.momentum.StochRSIIndicator(close=close, window=int(stochrsi_window))
+        out["StochRSI_K"] = srsi.stochrsi_k()
+        out["StochRSI_D"] = srsi.stochrsi_d()
+    if use_mfi:
+        mfi = ta.volume.MFIIndicator(high=high, low=low, close=close, volume=vol, window=int(mfi_window))
+        out["MFI"] = mfi.money_flow_index()
+    if use_cci:
+        cci = ta.trend.CCIIndicator(high=high, low=low, close=close, window=int(cci_window))
+        out["CCI"] = cci.cci()
+    if use_obv:
+        obv = ta.volume.OnBalanceVolumeIndicator(close=close, volume=vol)
+        out["OBV"] = obv.on_balance_volume()
+    if use_psar:
+        try:
+            ps = ta.trend.PSARIndicator(high=high, low=low, close=close, step=float(psar_step), max_step=float(psar_max_step))
+            out["PSAR"] = ps.psar()
+        except Exception:
+            out["PSAR"] = np.nan
 
     return out
 
@@ -254,48 +285,31 @@ dfi = add_indicators(df).dropna(how="all")
 
 # ========================= TradingView 风格图表 =========================
 st.subheader(f"🕯️ K线（{symbol} / {source} / {interval}）")
-
 fig = go.Figure()
+fig.add_trace(go.Candlestick(x=dfi.index, open=dfi["Open"], high=dfi["High"], low=dfi["Low"], close=dfi["Close"], name="K线"))
 
-# 主图：K线
-fig.add_trace(go.Candlestick(
-    x=dfi.index, open=dfi["Open"], high=dfi["High"], low=dfi["Low"], close=dfi["Close"], name="K线"
-))
-
-# 叠加：MA/EMA
 if use_ma:
     for p in parse_int_list(ma_periods_text):
         col = f"MA{p}"
-        if col in dfi.columns:
-            fig.add_trace(go.Scatter(x=dfi.index, y=dfi[col], mode="lines", name=col, yaxis="y"))
+        if col in dfi.columns: fig.add_trace(go.Scatter(x=dfi.index, y=dfi[col], mode="lines", name=col, yaxis="y"))
 if use_ema:
     for p in parse_int_list(ema_periods_text):
         col = f"EMA{p}"
-        if col in dfi.columns:
-            fig.add_trace(go.Scatter(x=dfi.index, y=dfi[col], mode="lines", name=col, yaxis="y"))
-
-# 叠加：BOLL
+        if col in dfi.columns: fig.add_trace(go.Scatter(x=dfi.index, y=dfi[col], mode="lines", name=col, yaxis="y"))
 if use_boll:
-    for col, nm in [("BOLL_U","BOLL 上轨"),("BOLL_M","BOLL 中轨"),("BOLL_L","BOLL 下轨")]:
-        if col in dfi.columns:
-            fig.add_trace(go.Scatter(x=dfi.index, y=dfi[col], mode="lines", name=nm, yaxis="y"))
+    for col,nm in [("BOLL_U","BOLL 上轨"),("BOLL_M","BOLL 中轨"),("BOLL_L","BOLL 下轨")]:
+        if col in dfi.columns: fig.add_trace(go.Scatter(x=dfi.index, y=dfi[col], mode="lines", name=nm, yaxis="y"))
 
-# 成交量副图（涨绿跌红）
 vol_colors = np.where(dfi["Close"] >= dfi["Open"], "rgba(38,166,91,0.7)", "rgba(239,83,80,0.7)")
 if "Volume" in dfi.columns and not dfi["Volume"].isna().all():
     fig.add_trace(go.Bar(x=dfi.index, y=dfi["Volume"], name="成交量", yaxis="y2", marker_color=vol_colors))
-
-# MACD 副图
 if use_macd and all(c in dfi.columns for c in ["MACD","MACD_signal","MACD_hist"]):
     fig.add_trace(go.Scatter(x=dfi.index, y=dfi["MACD"], name="MACD", yaxis="y3", mode="lines"))
     fig.add_trace(go.Scatter(x=dfi.index, y=dfi["MACD_signal"], name="Signal", yaxis="y3", mode="lines"))
     fig.add_trace(go.Bar(x=dfi.index, y=dfi["MACD_hist"], name="MACD 柱", yaxis="y3", opacity=0.4))
-
-# RSI 副图
 if use_rsi and "RSI" in dfi.columns:
     fig.add_trace(go.Scatter(x=dfi.index, y=dfi["RSI"], name="RSI", yaxis="y4", mode="lines"))
 
-# 布局：引入两份代码里的优点（domains + 拖拽 + 工具栏）
 fig.update_layout(
     xaxis_rangeslider_visible=False,
     height=900,
@@ -305,7 +319,6 @@ fig.update_layout(
     yaxis2=dict(domain=[0.45, 0.57], title="成交量", showgrid=False),
     yaxis3=dict(domain=[0.25, 0.44], title="MACD", showgrid=False),
     yaxis4=dict(domain=[0.0, 0.24], title="RSI", showgrid=False, range=[0,100]),
-    # 增补：绘图工具按钮（来自第一份代码）
     modebar_add=["drawline","drawopenpath","drawclosedpath","drawcircle","drawrect","eraseshape"],
 )
 st.plotly_chart(fig, use_container_width=True, config={
@@ -323,7 +336,6 @@ price = float(last["Close"])
 
 # 1) 趋势/动能评分
 score = 0; reasons = []
-# 使用 MA20/MA50 趋势（若存在）
 ma20 = dfi["MA20"].iloc[-1] if "MA20" in dfi.columns else np.nan
 ma50 = dfi["MA50"].iloc[-1] if "MA50" in dfi.columns else np.nan
 if not np.isnan(ma20) and not np.isnan(ma50):
@@ -332,14 +344,12 @@ if not np.isnan(ma20) and not np.isnan(ma50):
     elif ma20 < ma50 and price < ma20:
         score -= 2; reasons.append("MA20<MA50 且价在MA20下，空头趋势")
 
-# MACD
 if use_macd and all(c in dfi.columns for c in ["MACD","MACD_signal","MACD_hist"]):
     if last["MACD"] > last["MACD_signal"] and last["MACD_hist"] > 0:
         score += 2; reasons.append("MACD 金叉且柱为正")
     elif last["MACD"] < last["MACD_signal"] and last["MACD_hist"] < 0:
         score -= 2; reasons.append("MACD 死叉且柱为负")
 
-# RSI
 if use_rsi and "RSI" in dfi.columns:
     if last["RSI"] >= 70:
         score -= 1; reasons.append("RSI 过热（≥70）")
@@ -351,7 +361,7 @@ if score >= 3: decision = "买入/加仓"
 elif score <= -2: decision = "减仓/离场"
 
 # 2) 历史百分位（最近窗口）
-hist_window = min(len(dfi), 365)  # 近一年或可用数据
+hist_window = min(len(dfi), 365)
 recent_close = dfi["Close"].iloc[-hist_window:]
 pct_rank = float((recent_close <= price).mean()) * 100 if hist_window > 1 else 50.0
 
@@ -367,11 +377,9 @@ if use_atr and "ATR" in dfi.columns and not np.isnan(last["ATR"]):
     atr_val = float(last["ATR"])
 else:
     atr_val = float(dfi["Close"].pct_change().rolling(14).std().iloc[-1] * price)
-
 tp = price + 2.0*atr_val if decision != "减仓/离场" else price - 2.0*atr_val
 sl = price - 1.2*atr_val if decision != "减仓/离场" else price + 1.2*atr_val
 
-# 5) 文案提示
 hint = "区间中位；按信号执行为主。"
 if pct_rank <= 25:
     hint = "低位区间（≤25%）→ 倾向逢低布局，关注止损与量能确认。"
@@ -404,12 +412,10 @@ def simple_backtest(df):
     else:
         sig = np.zeros(len(df))
     df["sig"] = sig
-
     ret = df["Close"].pct_change().fillna(0.0).values
     pos = pd.Series(sig, index=df.index).replace(0, np.nan).ffill().fillna(0).values
     strat_ret = pos * ret
     equity = (1+pd.Series(strat_ret, index=df.index)).cumprod()
-
     pnl = []
     last_side = 0; entry_price = None
     for side,p in zip(pos, df["Close"].values):
@@ -418,7 +424,6 @@ def simple_backtest(df):
         elif side==0 and last_side!=0 and entry_price is not None:
             pnl.append((p/entry_price-1)*last_side); last_side=0; entry_price=None
     pnl = pd.Series(pnl) if len(pnl)>0 else pd.Series(dtype=float)
-
     win_rate = float((pnl>0).mean()) if len(pnl)>0 else 0.0
     roll_max = equity.cummax(); mdd = float(((roll_max - equity)/roll_max).max()) if len(equity)>0 else 0.0
     return equity, pnl, win_rate, mdd
@@ -431,12 +436,10 @@ c1.metric("历史胜率", f"{win_rate*100:.2f}%")
 c2.metric("最大回撤", f"{mdd*100:.2f}%")
 total_ret = equity.iloc[-1]/equity.iloc[0]-1 if len(equity)>1 else 0.0
 c3.metric("累计收益", f"{total_ret*100:.2f}%")
-
 fig_eq = go.Figure()
 fig_eq.add_trace(go.Scatter(x=equity.index, y=equity.values, mode="lines", name="策略净值"))
 fig_eq.update_layout(height=280, xaxis_rangeslider_visible=False)
 st.plotly_chart(fig_eq, use_container_width=True)
-
 if len(pnl)>0:
     st.plotly_chart(px.histogram(pnl, nbins=20, title="单笔收益分布"), use_container_width=True)
 else:
@@ -451,7 +454,6 @@ risk_amount = float(account_value) * (float(risk_pct)/100.0)
 position_value = risk_amount / max(stop_distance, 1e-6) / max(int(leverage),1)
 position_value = min(position_value, float(account_value))
 position_size = position_value / max(price, 1e-9)
-
 rc1, rc2, rc3 = st.columns(3)
 rc1.metric("建议持仓名义价值", f"{position_value:,.2f}")
 rc2.metric("建议仓位数量", f"{position_size:,.6f}")
@@ -460,7 +462,6 @@ st.caption("仓位公式：头寸 = 账户总值 × 单笔风险% ÷ (止损幅�
 
 # ========================= 组合风险暴露（按波动率配比） =========================
 st.subheader("📊 组合风险暴露建议（低波动高权重）")
-
 def get_close_series(sym):
     try:
         if source == "CoinGecko（免API）":
@@ -480,7 +481,6 @@ for s in combo_symbols:
     se = get_close_series(s)
     if se is not None and not se.empty:
         series_list.append(se)
-
 if series_list:
     closes = pd.concat(series_list, axis=1).dropna()
     vols = closes.pct_change().rolling(30).std().iloc[-1].replace(0, np.nan)
@@ -490,3 +490,222 @@ if series_list:
     st.plotly_chart(px.pie(w_df, names="symbol", values="weight", title="建议权重"), use_container_width=True)
 else:
     st.info("组合标留空或数据不足。")
+
+# ========================= 新增模块：多指标策略组合 & 绩效预测 =========================
+st.markdown("---")
+st.subheader("🧪 组合策略评估（多指标合成｜非投资建议）")
+
+with st.expander("选择策略构件（多选）与规则"):
+    blocks = [
+        "MA20>MA50（趋势做多）",
+        "EMA20>EMA50（趋势做多）",
+        "价格>EMA200（长线多头）",
+        "MACD 金叉（MACD>Signal）",
+        "RSI>50（强于中位）",
+        "RSI<30 反转做多",
+        "突破上轨（BOLL_U）",
+        "回踩下轨反弹（价> BOLL_L）",
+        "ADX>25（趋势强）",
+        "K线上穿VWAP",
+        "STOCH 金叉（K>D & K<80）",
+        "StochRSI 超卖反转（K<20→上穿）",
+        "CCI<-100 反转做多",
+        "OBV 上升（OBV 斜率>0）",
+        "PSAR 多头（价>PSAR）",
+    ]
+    chosen_blocks = st.multiselect("选择信号构件（至少一个）", options=blocks, default=[
+        "MA20>MA50（趋势做多）",
+        "MACD 金叉（MACD>Signal）",
+        "RSI>50（强于中位）",
+        "ADX>25（趋势强）",
+        "K线上穿VWAP",
+    ])
+    logic = st.selectbox("合成逻辑", ["AND（全部满足）", "OR（任一满足）"], index=0)
+    side = st.selectbox("交易方向", ["做多", "做空"], index=0)
+    min_hold = st.number_input("最小持有期（根）", min_value=0, value=3, step=1)
+    use_exit_flip = st.checkbox("反向信号退出", True)
+    use_atr_stop = st.checkbox("启用 ATR 止损/止盈", True)
+    atr_sl_mult = st.number_input("ATR 止损倍数", min_value=0.1, value=1.5, step=0.1)
+    atr_tp_mult = st.number_input("ATR 止盈倍数", min_value=0.1, value=3.0, step=0.1)
+
+def _block_signal(df):
+    """根据所选构件返回布尔信号 DataFrame 的 'entry' 与 'exit_hint'（用于反向退出）。"""
+    d = df.copy()
+    e = pd.Series(False, index=d.index)
+
+    def shift_cross_up(a, b):
+        return (a > b) & (a.shift(1) <= b.shift(1))
+
+    # 各构件
+    conds = []
+    if "MA20>MA50（趋势做多）" in chosen_blocks and all(c in d.columns for c in ["MA20","MA50"]):
+        conds.append(d["MA20"] > d["MA50"])
+    if "EMA20>EMA50（趋势做多）" in chosen_blocks and all(c in d.columns for c in ["EMA20","EMA50"]):
+        conds.append(d["EMA20"] > d["EMA50"])
+    if "价格>EMA200（长线多头）" in chosen_blocks and "EMA200" in d.columns:
+        conds.append(d["Close"] > d["EMA200"])
+    if "MACD 金叉（MACD>Signal）" in chosen_blocks and all(c in d.columns for c in ["MACD","MACD_signal"]):
+        conds.append(d["MACD"] > d["MACD_signal"])
+    if "RSI>50（强于中位）" in chosen_blocks and "RSI" in d.columns:
+        conds.append(d["RSI"] > 50)
+    if "RSI<30 反转做多" in chosen_blocks and "RSI" in d.columns:
+        conds.append(shift_cross_up(50 - (d["RSI"] - 30), 0))  # 近似表示 RSI 上穿30
+    if "突破上轨（BOLL_U）" in chosen_blocks and "BOLL_U" in d.columns:
+        conds.append(d["Close"] > d["BOLL_U"])
+    if "回踩下轨反弹（价> BOLL_L）" in chosen_blocks and "BOLL_L" in d.columns:
+        conds.append(shift_cross_up(d["Close"], d["BOLL_L"]))
+    if "ADX>25（趋势强）" in chosen_blocks and "ADX" in d.columns:
+        conds.append(d["ADX"] > 25)
+    if "K线上穿VWAP" in chosen_blocks and "VWAP" in d.columns:
+        conds.append(shift_cross_up(d["Close"], d["VWAP"]))
+    if "STOCH 金叉（K>D & K<80）" in chosen_blocks and all(c in d.columns for c in ["STOCH_K","STOCH_D"]):
+        conds.append( (d["STOCH_K"] > d["STOCH_D"]) & (d["STOCH_K"] < 80) & (d["STOCH_D"].shift(1) >= d["STOCH_K"].shift(1)) )
+    if "StochRSI 超卖反转（K<20→上穿）" in chosen_blocks and "StochRSI_K" in d.columns:
+        conds.append( shift_cross_up(d["StochRSI_K"], pd.Series(20.0, index=d.index)) )
+    if "CCI<-100 反转做多" in chosen_blocks and "CCI" in d.columns:
+        conds.append( shift_cross_up(d["CCI"], pd.Series(-100.0, index=d.index)) )
+    if "OBV 上升（OBV 斜率>0）" in chosen_blocks and "OBV" in d.columns:
+        conds.append(d["OBV"].diff() > 0)
+    if "PSAR 多头（价>PSAR）" in chosen_blocks and "PSAR" in d.columns:
+        conds.append(d["Close"] > d["PSAR"])
+
+    if not conds:
+        return e, pd.Series(False, index=d.index)  # 无选择
+
+    if "AND" in logic:
+        e = conds[0]
+        for c in conds[1:]:
+            e = e & c
+    else:
+        e = conds[0]
+        for c in conds[1:]:
+            e = e | c
+
+    # 反向提示（用于可选的反向退出）
+    rev = ~e
+    return e.fillna(False), rev.fillna(False)
+
+def _guess_bar_per_year(interval_sel: str):
+    # 粗略推断年化换算基数
+    if interval_sel in ["1m","3m","5m","15m","30m"]:
+        m = {"1m":525600, "3m":175200, "5m":105120, "15m":35040, "30m":17520}
+        return m.get(interval_sel, 17520)
+    if interval_sel in ["1H","2H","4H","6H","12H"]:
+        h = {"1H":8760, "2H":4380, "4H":2190, "6H":1460, "12H":730}
+        return h.get(interval_sel, 8760)
+    if interval_sel in ["1D","1d"]:
+        return 365
+    if interval_sel in ["1W","1w","1wk"]:
+        return 52
+    if interval_sel in ["1M","1mo"]:
+        return 12
+    return 252  # 默认交易日
+
+def backtest_combo(df):
+    d = df.copy().dropna().copy()
+    if d.empty:
+        return None
+
+    entry_sig, rev_hint = _block_signal(d)
+    if side == "做空":
+        entry_sig = entry_sig  # 做空构建：使用相同触发，方向为-1
+    entry_idx = np.where(entry_sig.values)[0]
+
+    pos = pd.Series(0, index=d.index, dtype=float)
+    in_pos = False
+    side_mult = 1 if side == "做多" else -1
+    entry_price = None
+    entry_bar = None
+    atr_series = d["ATR"] if "ATR" in d.columns else (d["Close"].pct_change().rolling(14).std()*d["Close"])
+
+    trades = []
+    for i in range(len(d)):
+        if not in_pos:
+            if entry_sig.iat[i]:
+                in_pos = True
+                entry_bar = i
+                entry_price = float(d["Close"].iat[i])
+                pos.iat[i] = side_mult
+            # else remain 0
+        else:
+            pos.iat[i] = side_mult
+            # 退出判定
+            exit_flag = False
+            if min_hold and entry_bar is not None and (i - entry_bar) < int(min_hold):
+                exit_flag = False
+            else:
+                if use_exit_flip and rev_hint.iat[i]:
+                    exit_flag = True
+                if use_atr_stop and (not np.isnan(atr_series.iat[i])):
+                    atrv = float(atr_series.iat[i])
+                    sl = entry_price - side_mult*atr_sl_mult*atrv
+                    tp = entry_price + side_mult*atr_tp_mult*atrv
+                    price_i = float(d["Close"].iat[i])
+                    if (side_mult==1 and (price_i<=sl or price_i>=tp)) or (side_mult==-1 and (price_i>=sl or price_i<=tp)):
+                        exit_flag = True
+            if exit_flag:
+                exit_price = float(d["Close"].iat[i])
+                ret = (exit_price/entry_price-1.0)*side_mult
+                trades.append(ret)
+                in_pos = False
+                entry_price = None
+                entry_bar = None
+                pos.iat[i] = 0
+
+    # 若最后仍持仓，以最后收盘结算
+    if in_pos and entry_price is not None:
+        exit_price = float(d["Close"].iat[-1])
+        ret = (exit_price/entry_price-1.0)*side_mult
+        trades.append(ret)
+
+    ret_series = d["Close"].pct_change().fillna(0.0)
+    strat_ret = ret_series * pos.shift(1).fillna(0.0)
+    equity = (1+strat_ret).cumprod()
+
+    # 统计指标
+    trades = pd.Series(trades, dtype=float)
+    win_rate = float((trades>0).mean()) if len(trades)>0 else 0.0
+    total_return = float(equity.iat[-1]/equity.iat[0]-1.0) if len(equity)>1 else 0.0
+    roll_max = equity.cummax()
+    mdd = float(((roll_max - equity)/roll_max).max()) if len(equity)>0 else 0.0
+
+    # 年化与 Sharpe
+    bars_per_year = _guess_bar_per_year(interval)
+    avg_ret = strat_ret.mean()
+    vol_ret = strat_ret.std()
+    if vol_ret and vol_ret>0:
+        sharpe = (avg_ret/vol_ret) * math.sqrt(bars_per_year)
+    else:
+        sharpe = 0.0
+    cagr = (equity.iat[-1] ** (bars_per_year/max(1, len(equity))) - 1.0) if len(equity)>1 else 0.0
+
+    return {
+        "equity": equity,
+        "pos": pos,
+        "trades": trades,
+        "win_rate": win_rate,
+        "total_return": total_return,
+        "mdd": mdd,
+        "sharpe": sharpe,
+        "cagr": cagr,
+        "trades_count": int(len(trades))
+    }
+
+res = backtest_combo(dfi)
+if res is None:
+    st.warning("所选构件不足以生成信号，请至少选择一个构件，并确保相关指标已在左侧勾选。")
+else:
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric("胜率", f"{res['win_rate']*100:.2f}%")
+    c2.metric("累计收益", f"{res['total_return']*100:.2f}%")
+    c3.metric("最大回撤", f"{res['mdd']*100:.2f}%")
+    c4.metric("Sharpe", f"{res['sharpe']:.2f}")
+    c5.metric("交易次数", str(res['trades_count']))
+    fig_c = go.Figure()
+    fig_c.add_trace(go.Scatter(x=res["equity"].index, y=res["equity"].values, mode="lines", name="组合策略净值"))
+    fig_c.update_layout(height=320, xaxis_rangeslider_visible=False)
+    st.plotly_chart(fig_c, use_container_width=True)
+    if len(res["trades"])>0:
+        st.plotly_chart(px.histogram(res["trades"], nbins=20, title="单笔收益分布（组合策略）"), use_container_width=True)
+    else:
+        st.info("组合策略暂无闭合交易样本。")
