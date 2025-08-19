@@ -504,7 +504,7 @@ def get_close_series(sym):
 series_list = []
 for s in combo_symbols:
     se = get_close_series(s)
-    if se is not None and not se.empty:
+    if se is not and not se.empty:
         series_list.append(se)
 if series_list:
     closes = pd.concat(series_list, axis=1).dropna()
@@ -703,7 +703,12 @@ def backtest_combo(df):
         sharpe = (avg_ret/vol_ret) * math.sqrt(bars_per_year)
     else:
         sharpe = 0.0
-    cagr = (equity.iat[-1] ** (bars_per_year/max(1, len(equity))) - 1.0 if len(equity)>1 else 0.0
+        
+    # 计算年化复合增长率
+    if len(equity) > 1:
+        cagr = (equity.iloc[-1] / equity.iloc[0]) ** (bars_per_year / len(equity)) - 1.0
+    else:
+        cagr = 0.0
 
     return {
         "equity": equity,
