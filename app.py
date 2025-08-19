@@ -93,17 +93,111 @@ weekly_loss_limit = st.sidebar.number_input("每周亏损阈值（%）", min_val
 st.sidebar.header("⑥ 刷新设置")
 refresh_button = st.sidebar.button("🔄 手动刷新K线")
 refresh_sec = st.sidebar.number_input("自动刷新间隔（秒）", min_value=0, value=0, step=1)
-if refresh_sec > 0:
-    st_autorefresh = st.experimental_singleton(lambda: None)  # 占位
-    st_autorefresh = st.experimental_rerun
 
-# ========================= 数据加载函数（保持原有逻辑） =========================
-# ...【此处保留你原有的所有 load_xxx 函数，不删减】...
+# ========================= 数据加载函数 =========================
+def _cg_days_from_interval(sel: str) -> str:
+    if sel.startswith("1d"): return "180"
+    if sel.startswith("1w"): return "365"
+    if sel.startswith("1M"): return "365"
+    if sel.startswith("max"): return "max"
+    return "180"
 
-# ========================= 指标计算函数 & 图表绘制（保持原有逻辑） =========================
-# ...【此处保留你原有 add_indicators、图表绘制部分，不删减】...
+@st.cache_data(ttl=900)
+def load_coingecko_ohlc_robust(coin_id: str, interval_sel: str):
+    days = _cg_days_from_interval(interval_sel)
+    try:
+        url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/ohlc"
+        r = requests.get(url, params={"vs_currency": "usd", "days": days}, timeout=20)
+        if r.status_code == 200:
+            arr = r.json()
+            if isinstance(arr, list) and len(arr) > 0:
+                rows = [(pd.to_datetime(x[0], unit="ms"), float(x[1]), float(x[2]), float(x[3]), float(x[4])) for x in arr]
+                return pd.DataFrame(rows, columns=["Date","Open","High","Low","Close"]).set_index("Date")
+    except Exception: pass
+    return pd.DataFrame()
 
-# ========================= 策略模块扩展 =========================
+@st.cache_data(ttl=900)
+def load_okx_public(instId: str, bar: str, base_url: str = ""):
+    url = (base_url.rstrip('/') if base_url else "https://www.okx.com") + "/api/v5/market/candles"
+    params = {"instId": instId, "bar": bar, "limit": "1000"}
+    r = requests.get(url, params=params, timeout=20)
+    r.raise_for_status()
+    data = r.json().get("data", [])
+    if not data: return pd.DataFrame()
+    rows = []
+    for a in reversed(data):
+        ts = int(a[0]); o=float(a[1]); h=float(a[2]); l=float(a[3]); c=float(a[4]); v=float(a[5])
+        rows.append((pd.to_datetime(ts, unit="ms"), o,h,l,c,v))
+    return pd.DataFrame(rows, columns=["Date","Open","High","Low","Close","Volume"]).set_index("Date")
+
+@st.cache_data(ttl=900)
+def load_yf(symbol: str, interval_sel: str):
+    interval_map = {"1d":"1d","1wk":"1wk","1mo":"1mo"}
+    interval = interval_map.get(interval_sel, "1d")
+    df = yf.download(symbol, period="5y", interval=interval, progress=False, auto_adjust=False)
+    if not df.empty:
+        df = df[["Open","High","Low","Close","Volume"]].dropna()
+    return df
+
+def load_router(source, symbol, interval_sel, api_base=""):
+    if source == "CoinGecko（免API）":
+        return load_coingecko_ohlc_robust(symbol, interval_sel)
+    elif source in ["OKX 公共行情（免API）", "OKX API（可填API基址）"]:
+        return load_okx_public(symbol, interval_sel, base_url=api_base if "OKX API" in source else "")
+    else:
+        return load_yf(symbol, interval_sel)
+
+# ========================= 获取数据并计算指标 =========================
+df = load_router(source, symbol, interval, api_base)
+
+if df.empty or not set(["Open","High","Low","Close"]).issubset(df.columns):
+    st.error("数据为空或字段缺失，请更换数据源/周期")
+    st.stop()
+
+def parse_int_list(text):
+    try: return [int(x.strip()) for x in text.split(",") if x.strip()]
+    except Exception: return []
+
+def add_indicators(df):
+    out = df.copy()
+    close, high, low = out["Close"], out["High"], out["Low"]
+    if "Volume" not in out.columns: out["Volume"] = np.nan
+    if use_ma:
+        for p in parse_int_list(ma_periods_text): out[f"MA{p}"] = close.rolling(p).mean()
+    if use_ema:
+        for p in parse_int_list(ema_periods_text): out[f"EMA{p}"] = ta.trend.EMAIndicator(close, window=p).ema_indicator()
+    if use_boll:
+        boll = ta.volatility.BollingerBands(close, window=int(boll_window), window_dev=float(boll_std))
+        out["BOLL_M"], out["BOLL_U"], out["BOLL_L"] = boll.bollinger_mavg(), boll.bollinger_hband(), boll.bollinger_lband()
+    if use_macd:
+        macd_ind = ta.trend.MACD(close, window_slow=int(macd_slow), window_fast=int(macd_fast), window_sign=int(macd_sig))
+        out["MACD"], out["MACD_signal"], out["MACD_hist"] = macd_ind.macd(), macd_ind.macd_signal(), macd_ind.macd_diff()
+    if use_rsi: out["RSI"] = ta.momentum.RSIIndicator(close, window=int(rsi_window)).rsi()
+    if use_atr: out["ATR"] = ta.volatility.AverageTrueRange(high, low, close, window=int(atr_window)).average_true_range()
+    return out
+
+dfi = add_indicators(df).dropna(how="all")
+
+# ========================= TradingView 风格图表 =========================
+st.subheader(f"🕯️ K线（{symbol} / {source} / {interval}）")
+fig = go.Figure()
+fig.add_trace(go.Candlestick(x=dfi.index, open=dfi["Open"], high=dfi["High"], low=dfi["Low"], close=dfi["Close"], name="K线"))
+# MA/EMA/BOLL 绘制
+if use_ma:
+    for p in parse_int_list(ma_periods_text):
+        col = f"MA{p}"
+        if col in dfi.columns: fig.add_trace(go.Scatter(x=dfi.index, y=dfi[col], mode="lines", name=col))
+if use_ema:
+    for p in parse_int_list(ema_periods_text):
+        col = f"EMA{p}"
+        if col in dfi.columns: fig.add_trace(go.Scatter(x=dfi.index, y=dfi[col], mode="lines", name=col))
+if use_boll:
+    for col,nm in [("BOLL_U","BOLL 上轨"),("BOLL_M","BOLL 中轨"),("BOLL_L","BOLL 下轨")]:
+        if col in dfi.columns: fig.add_trace(go.Scatter(x=dfi.index, y=dfi[col], mode="lines", name=nm))
+
+st.plotly_chart(fig, use_container_width=True)
+
+# ========================= 策略组合 =========================
 st.markdown("---")
 st.subheader("🧩 策略组合构件")
 
@@ -115,11 +209,9 @@ strategy_options = [
 ]
 selected_strategies = st.multiselect("选择组合策略（可多选）", strategy_options, default=["MA 多头（金叉做多）","MACD 金叉做多"])
 
-# ========================= 组合策略回测（输出交易明细） =========================
-def backtest_with_details(df, strategies, hold_bars=30):
+def backtest_with_details(df, strategies):
     df = df.copy().dropna()
     sig = np.zeros(len(df))
-
     for strat in strategies:
         if strat=="MA 多头（金叉做多）" and "MA20" in df.columns and "MA50" in df.columns:
             sig = np.where(df["MA20"]>df["MA50"], 1, sig)
