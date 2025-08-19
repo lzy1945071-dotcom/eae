@@ -1,60 +1,70 @@
-import streamlit as st
-import pandas as pd
-import numpy as np
-import requests
-import yfinance as yf
-import plotly.graph_objects as go
-import plotly.express as px
-import ta
-import math
-from datetime import datetime
+iimport streamlit as st
+index=pd.to_datetime([int(p[0]) for p in prices], unit="ms"),
+name="price"
+).sort_index()
+ohlc = s.resample("1D").agg(["first","max","min","last"]).dropna()
+ohlc.columns = ["Open","High","Low","Close"]
+return ohlc
+except Exception:
+pass
+return pd.DataFrame()
 
 
-# ========== 新增导入 ==========
-from streamlit_autorefresh import st_autorefresh
+@st.cache_data(ttl=900)
+def load_tokeninsight_ohlc(api_base_url: str, coin_id: str, interval_sel: str):
+if not api_base_url:
+return load_coingecko_ohlc_robust(coin_id, interval_sel)
+try:
+url = f"{api_base_url.rstrip('/')}/ohlc"
+r = requests.get(url, params={"symbol": coin_id, "period": "1d"}, timeout=15)
+r.raise_for_status()
+data = r.json()
+if isinstance(data, list) and data:
+rows = [(pd.to_datetime(x[0], unit="ms"), float(x[1]), float(x[2]), float(x[3]), float(x[4])) for x in data]
+return pd.DataFrame(rows, columns=["Date","Open","High","Low","Close"]).set_index("Date")
+except Exception:
+pass
+return load_coingecko_ohlc_robust(coin_id, interval_sel)
 
 
-st.set_page_config(page_title="Legend Quant Terminal Elite v3 FIX10", layout="wide")
-st.title("💎 Legend Quant Terminal Elite v3 FIX10")
+@st.cache_data(ttl=900)
+def load_okx_public(instId: str, bar: str, base_url: str = ""):
+url = (base_url.rstrip('/') if base_url else "https://www.okx.com") + "/api/v5/market/candles"
+params = {"instId": instId, "bar": bar, "limit": "1000"}
+r = requests.get(url, params=params, timeout=20)
+r.raise_for_status()
+data = r.json().get("data", [])
+if not data: return pd.DataFrame()
+rows = []
+for a in reversed(data):
+ts = int(a[0]); o=float(a[1]); h=float(a[2]); l=float(a[3]); c=float(a[4]); v=float(a[5])
+rows.append((pd.to_datetime(ts, unit="ms"), o,h,l,c,v))
+return pd.DataFrame(rows, columns=["Date","Open","High","Low","Close","Volume"]).set_index("Date")
 
 
-# ========================= Sidebar: 刷新功能 =========================
-st.sidebar.header("🔄 数据刷新设置")
-manual_refresh = st.sidebar.button("手动刷新 K线图")
-auto_refresh_sec = st.sidebar.number_input("自动刷新间隔（秒，0 表示关闭）", min_value=0, value=0, step=1)
+@st.cache_data(ttl=900)
+def load_yf(symbol: str, interval_sel: str):
+interval_map = {"1d":"1d","1wk":"1wk","1mo":"1mo"}
+interval = interval_map.get(interval_sel, "1d")
+df = yf.download(symbol, period="5y", interval=interval, progress=False, auto_adjust=False)
+if not df.empty:
+df = df[["Open","High","Low","Close","Volume"]].dropna()
+return df
 
 
-if auto_refresh_sec > 0:
-st_autorefresh(interval=auto_refresh_sec * 1000, key="auto_refresh")
+def load_router(source, symbol, interval_sel, api_base=""):
+if source == "CoinGecko（免API）":
+return load_coingecko_ohlc_robust(symbol, interval_sel)
+elif source == "TokenInsight API 模式（可填API基址）":
+return load_tokeninsight_ohlc(api_base, symbol, interval_sel)
+elif source in ["OKX 公共行情（免API）", "OKX API（可填API基址）"]:
+base = api_base if source == "OKX API（可填API基址）" else ""
+return load_okx_public(symbol, interval_sel, base_url=base)
+else:
+return load_yf(symbol, interval_sel)
 
-# ========================= Sidebar: ① 数据来源与标的 =========================
-st.sidebar.header("① 数据来源与标的")
-source = st.sidebar.selectbox(
-    "数据来源",
-    [
-        # 调整顺序：OKX 免API 第一位；CoinGecko 第二位（其余保持）
-        "OKX 公共行情（免API）",
-        "CoinGecko（免API）",
-        "OKX API（可填API基址）",
-        "TokenInsight API 模式（可填API基址）",
-        "Yahoo Finance（美股/A股）",
-    ],
-    index=0
-)
 
-api_base = ""
-api_key = ""
-api_secret = ""
-api_passphrase = ""
-
-if source in ["OKX API（可填API基址）", "TokenInsight API 模式（可填API基址）"]:
-    st.sidebar.markdown("**API 连接设置**")
-    api_base = st.sidebar.text_input("API 基址（留空用默认公共接口）", value="")
-    if source == "OKX API（可填API基址）":
-        with st.sidebar.expander("（可选）OKX API 认证信息"):
-            api_key = st.text_input("OKX-API-KEY", value="", type="password")
-            api_secret = st.text_input("OKX-API-SECRET", value="", type="password")
-            api_passphrase = st.text_input("OKX-API-PASSPHRASE", value="", type="password")
+# ===== 在这里再调用 load_router =====
 df = load_router(source, symbol, interval, api_base)
 
 
