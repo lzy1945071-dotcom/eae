@@ -14,6 +14,14 @@ from streamlit_autorefresh import st_autorefresh
 st.set_page_config(page_title="Legend Quant Terminal Elite v3 FIX10", layout="wide")
 st.title("💎 Legend Quant Terminal Elite v3 FIX10")
 
+# ========================= 添加自动刷新功能 =========================
+# 在侧边栏添加自动刷新设置
+st.sidebar.header("🔄 刷新设置")
+auto_refresh = st.sidebar.checkbox("启用自动刷新", value=False)
+if auto_refresh:
+    refresh_interval = st.sidebar.number_input("自动刷新间隔(秒)", min_value=1, value=60, step=1)
+    st_autorefresh(interval=refresh_interval * 1000, key="auto_refresh")
+
 # ========================= Sidebar: ① 数据来源与标的 =========================
 st.sidebar.header("① 数据来源与标的")
 source = st.sidebar.selectbox(
@@ -27,6 +35,15 @@ source = st.sidebar.selectbox(
     ],
     index=0
 )
+
+# ========================= 添加手动刷新按钮 =========================
+# 在主视图旁边添加手动刷新按钮
+col1, col2 = st.columns([6, 1])
+with col2:
+    if st.button("🔄 刷新数据", use_container_width=True):
+        # 清除缓存以强制刷新数据
+        st.cache_data.clear()
+        st.rerun()
 
 api_base = ""
 api_key = ""
