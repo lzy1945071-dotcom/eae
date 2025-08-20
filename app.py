@@ -39,8 +39,9 @@ source = st.sidebar.selectbox(
 col1, col2 = st.columns([6, 1])
 with col2:
     if st.button("🔄 刷新数据", use_container_width=True):
+        # 清除缓存以强制刷新数据，但不重置视图状态
         st.cache_data.clear()
-        st.rerun()
+        st.experimental_rerun()
 
 api_base = ""
 api_key = ""
@@ -412,24 +413,72 @@ st.subheader(f"🕯️ K线（{symbol} / {source} / {interval}）")
 fig = go.Figure()
 fig.add_trace(go.Candlestick(x=dfi.index, open=dfi["Open"], high=dfi["High"], low=dfi["Low"], close=dfi["Close"], name="K线"))
 
-# 添加均线
+# 添加均线 - 默认隐藏
 if use_ma:
-    for p in parse_int_list(ma_periods_text):
+    ma_colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"]
+    for i, p in enumerate(parse_int_list(ma_periods_text)):
         col = f"MA{p}"
-        if col in dfi.columns: fig.add_trace(go.Scatter(x=dfi.index, y=dfi[col], mode="lines", name=col, yaxis="y"))
+        if col in dfi.columns: 
+            fig.add_trace(go.Scatter(
+                x=dfi.index, 
+                y=dfi[col], 
+                mode="lines", 
+                name=col, 
+                yaxis="y",
+                line=dict(color=ma_colors[i % len(ma_colors)]),
+                visible="legendonly"  # 默认隐藏
+            ))
+
 if use_ema:
-    for p in parse_int_list(ema_periods_text):
+    ema_colors = ["#3366cc", "#dc3912", "#ff9900", "#109618", "#990099", "#0099c6", "#dd4477", "#66aa00", "#b82e2e", "#316395"]
+    for i, p in enumerate(parse_int_list(ema_periods_text)):
         col = f"EMA{p}"
-        if col in dfi.columns: fig.add_trace(go.Scatter(x=dfi.index, y=dfi[col], mode="lines", name=col, yaxis="y"))
+        if col in dfi.columns: 
+            fig.add_trace(go.Scatter(
+                x=dfi.index, 
+                y=dfi[col], 
+                mode="lines", 
+                name=col, 
+                yaxis="y",
+                line=dict(color=ema_colors[i % len(ema_colors)]),
+                visible="legendonly"  # 默认隐藏
+            ))
+
 if use_boll:
-    for col,nm in [("BOLL_U","BOLL 上轨"),("BOLL_M","BOLL 中轨"),("BOLL_L","BOLL 下轨")]:
-        if col in dfi.columns: fig.add_trace(go.Scatter(x=dfi.index, y=dfi[col], mode="lines", name=nm, yaxis="y"))
+    boll_colors = ["#3d9970", "#ff4136", "#85144b"]
+    for i, (col, nm) in enumerate([("BOLL_U","BOLL 上轨"),("BOLL_M","BOLL 中轨"),("BOLL_L","BOLL 下轨")]):
+        if col in dfi.columns: 
+            fig.add_trace(go.Scatter(
+                x=dfi.index, 
+                y=dfi[col], 
+                mode="lines", 
+                name=nm, 
+                yaxis="y",
+                line=dict(color=boll_colors[i % len(boll_colors)]),
+                visible="legendonly"  # 默认隐藏
+            ))
 
-# 添加支撑阻力线
-fig.add_trace(go.Scatter(x=dfi.index, y=support, mode="lines", name="支撑", line=dict(color="green", dash="dash"), yaxis="y"))
-fig.add_trace(go.Scatter(x=dfi.index, y=resistance, mode="lines", name="阻力", line=dict(color="red", dash="dash"), yaxis="y"))
+# 添加支撑阻力线 - 默认隐藏
+fig.add_trace(go.Scatter(
+    x=dfi.index, 
+    y=support, 
+    mode="lines", 
+    name="支撑", 
+    line=dict(color="#00cc96", dash="dash"), 
+    yaxis="y",
+    visible="legendonly"  # 默认隐藏
+))
+fig.add_trace(go.Scatter(
+    x=dfi.index, 
+    y=resistance, 
+    mode="lines", 
+    name="阻力", 
+    line=dict(color="#ef553b", dash="dash"), 
+    yaxis="y",
+    visible="legendonly"  # 默认隐藏
+))
 
-# 添加买卖信号
+# 添加买卖信号 - 默认隐藏
 buy_signals = signals[signals.isin(["Buy"]).any(axis=1)]
 sell_signals = signals[signals.isin(["Sell"]).any(axis=1)]
 
@@ -440,7 +489,8 @@ if not buy_signals.empty:
         y=buy_points["Low"] * 0.99, 
         mode="markers", 
         name="买入信号",
-        marker=dict(symbol="triangle-up", size=10, color="green")
+        marker=dict(symbol="triangle-up", size=10, color="#00cc96"),
+        visible="legendonly"  # 默认隐藏
     ))
 
 if not sell_signals.empty:
@@ -450,35 +500,99 @@ if not sell_signals.empty:
         y=sell_points["High"] * 1.01, 
         mode="markers", 
         name="卖出信号",
-        marker=dict(symbol="triangle-down", size=10, color="red")
+        marker=dict(symbol="triangle-down", size=10, color="#ef553b"),
+        visible="legendonly"  # 默认隐藏
     ))
 
-# 添加成交量
+# 添加成交量 - 默认显示
 vol_colors = np.where(dfi["Close"] >= dfi["Open"], "rgba(38,166,91,0.7)", "rgba(239,83,80,0.7)")
 if "Volume" in dfi.columns and not dfi["Volume"].isna().all():
-    fig.add_trace(go.Bar(x=dfi.index, y=dfi["Volume"], name="成交量", yaxis="y2", marker_color=vol_colors))
+    fig.add_trace(go.Bar(
+        x=dfi.index, 
+        y=dfi["Volume"], 
+        name="成交量", 
+        yaxis="y2", 
+        marker_color=vol_colors,
+        opacity=0.7
+    ))
 
-# 添加MACD副图
+# 添加MACD副图 - 默认隐藏
 if use_macd and all(c in dfi.columns for c in ["MACD","MACD_signal","MACD_hist"]):
-    fig.add_trace(go.Scatter(x=dfi.index, y=dfi["MACD"], name="MACD", yaxis="y3", mode="lines"))
-    fig.add_trace(go.Scatter(x=dfi.index, y=dfi["MACD_signal"], name="Signal", yaxis="y3", mode="lines"))
-    fig.add_trace(go.Bar(x=dfi.index, y=dfi["MACD_hist"], name="MACD 柱", yaxis="y3", opacity=0.4))
+    fig.add_trace(go.Scatter(
+        x=dfi.index, 
+        y=dfi["MACD"], 
+        name="MACD", 
+        yaxis="y3", 
+        mode="lines",
+        line=dict(color="#3366cc"),
+        visible="legendonly"  # 默认隐藏
+    ))
+    fig.add_trace(go.Scatter(
+        x=dfi.index, 
+        y=dfi["MACD_signal"], 
+        name="Signal", 
+        yaxis="y3", 
+        mode="lines",
+        line=dict(color="#ff9900"),
+        visible="legendonly"  # 默认隐藏
+    ))
+    fig.add_trace(go.Bar(
+        x=dfi.index, 
+        y=dfi["MACD_hist"], 
+        name="MACD 柱", 
+        yaxis="y3", 
+        opacity=0.4,
+        marker_color=np.where(dfi["MACD_hist"] >= 0, "#00cc96", "#ef553b"),
+        visible="legendonly"  # 默认隐藏
+    ))
 
-# 添加RSI副图
+# 添加RSI副图 - 默认隐藏
 if use_rsi and "RSI" in dfi.columns:
-    fig.add_trace(go.Scatter(x=dfi.index, y=dfi["RSI"], name="RSI", yaxis="y4", mode="lines"))
+    fig.add_trace(go.Scatter(
+        x=dfi.index, 
+        y=dfi["RSI"], 
+        name="RSI", 
+        yaxis="y4", 
+        mode="lines",
+        line=dict(color="#17becf"),
+        visible="legendonly"  # 默认隐藏
+    ))
     # 添加RSI超买超卖线
-    fig.add_hline(y=70, line_dash="dash", line_color="red", yref="y4")
-    fig.add_hline(y=30, line_dash="dash", line_color="green", yref="y4")
+    fig.add_hline(y=70, line_dash="dash", line_color="red", yref="y4", opacity=0.5)
+    fig.add_hline(y=30, line_dash="dash", line_color="green", yref="y4", opacity=0.5)
 
-# 添加KDJ副图
+# 添加KDJ副图 - 默认隐藏
 if use_kdj and all(c in dfi.columns for c in ["KDJ_K","KDJ_D","KDJ_J"]):
-    fig.add_trace(go.Scatter(x=dfi.index, y=dfi["KDJ_K"], name="KDJ_K", yaxis="y5", mode="lines"))
-    fig.add_trace(go.Scatter(x=dfi.index, y=dfi["KDJ_D"], name="KDJ_D", yaxis="y5", mode="lines"))
-    fig.add_trace(go.Scatter(x=dfi.index, y=dfi["KDJ_J"], name="KDJ_J", yaxis="y5", mode="lines"))
+    fig.add_trace(go.Scatter(
+        x=dfi.index, 
+        y=dfi["KDJ_K"], 
+        name="KDJ_K", 
+        yaxis="y5", 
+        mode="lines",
+        line=dict(color="#ff7f0e"),
+        visible="legendonly"  # 默认隐藏
+    ))
+    fig.add_trace(go.Scatter(
+        x=dfi.index, 
+        y=dfi["KDJ_D"], 
+        name="KDJ_D", 
+        yaxis="y5", 
+        mode="lines",
+        line=dict(color="#1f77b4"),
+        visible="legendonly"  # 默认隐藏
+    ))
+    fig.add_trace(go.Scatter(
+        x=dfi.index, 
+        y=dfi["KDJ_J"], 
+        name="KDJ_J", 
+        yaxis="y5", 
+        mode="lines",
+        line=dict(color="#2ca02c"),
+        visible="legendonly"  # 默认隐藏
+    ))
     # 添加KDJ超买超卖线
-    fig.add_hline(y=80, line_dash="dash", line_color="red", yref="y5")
-    fig.add_hline(y=20, line_dash="dash", line_color="green", yref="y5")
+    fig.add_hline(y=80, line_dash="dash", line_color="red", yref="y5", opacity=0.5)
+    fig.add_hline(y=20, line_dash="dash", line_color="green", yref="y5", opacity=0.5)
 
 # 更新图表布局
 fig.update_layout(
@@ -492,6 +606,13 @@ fig.update_layout(
     yaxis4=dict(domain=[0.15, 0.24], title="RSI", showgrid=False, range=[0,100]),
     yaxis5=dict(domain=[0.0, 0.14], title="KDJ", showgrid=False, range=[0,100]),
     modebar_add=["drawline","drawopenpath","drawclosedpath","drawcircle","drawrect","eraseshape"],
+    legend=dict(
+        orientation="h",
+        yanchor="bottom",
+        y=1.02,
+        xanchor="right",
+        x=1
+    )
 )
 st.plotly_chart(fig, use_container_width=True, config={
     "scrollZoom": True,
@@ -700,7 +821,7 @@ with st.expander("选择策略构件（多选）与规则"):
         "ADX>25（趋势强）",
         "K线上穿VWAP",
     ])
-    logic = st.selectbox("合成逻辑", ["AND（全部满足）", "OR（任一满足）"], index=0)
+    logic = st.selectbox("合成逻辑", ["AND（全部满足）", "OR（任一满足）", "MAJORITY（多数满足）"], index=0)
     side = st.selectbox("交易方向", ["做多", "做空"], index=0)
     min_hold = st.number_input("最小持有期（根）", min_value=0, value=3, step=1)
     use_exit_flip = st.checkbox("反向信号退出", True)
@@ -758,10 +879,14 @@ def _block_signal(df):
         e = conds[0]
         for c in conds[1:]:
             e = e & c
-    else:
+    elif "OR" in logic:
         e = conds[0]
         for c in conds[1:]:
             e = e | c
+    else:  # MAJORITY
+        # 计算满足条件的数量
+        cond_count = sum(1 for c in conds if c.any())
+        e = cond_count > len(conds) / 2
 
     # 反向提示（用于可选的反向退出）
     rev = ~e
