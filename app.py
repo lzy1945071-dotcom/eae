@@ -41,7 +41,7 @@ with col2:
     if st.button("🔄 刷新数据", use_container_width=True):
         # 清除缓存以强制刷新数据，但不重置视图状态
         st.cache_data.clear()
-        st.experimental_rerun()
+        st.rerun()  # 修复: 使用 st.rerun() 替代 st.experimental_rerun()
 
 api_base = ""
 api_key = ""
