@@ -19,6 +19,8 @@ if 'last_refresh_time' not in st.session_state:
     st.session_state.last_refresh_time = None
 if 'show_checkmark' not in st.session_state:
     st.session_state.show_checkmark = False
+if 'interval_selection' not in st.session_state:
+    st.session_state.interval_selection = "1D"  # 默认值
 
 # ========================= 添加自动刷新功能 =========================
 st.sidebar.header("🔄 刷新设置")
@@ -44,12 +46,14 @@ source = st.sidebar.selectbox(
 # ========================= 添加手动刷新按钮 =========================
 col1, col2, col3 = st.columns([6, 1, 2])
 with col2:
-    if st.button("🔄 刷新数据", use_container_width=True, key="refresh_button"):
+    if st.button("刷新", use_container_width=True, key="refresh_button"):
         # 清除缓存以强制刷新数据
         st.cache_data.clear()
         # 更新刷新时间和显示状态
         st.session_state.last_refresh_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         st.session_state.show_checkmark = True
+        # 保存当前的周期选择
+        st.session_state.interval_selection = interval
         # 刷新页面
         st.rerun()
 
@@ -80,15 +84,45 @@ if source in ["OKX API（可填API基址）", "TokenInsight API 模式（可填A
 if source in ["CoinGecko（免API）", "TokenInsight API 模式（可填API基址）"]:
     symbol = st.sidebar.selectbox("个标（CoinGecko coin_id）", ["bitcoin","ethereum","solana","dogecoin","cardano","ripple","polkadot"], index=1)
     combo_symbols = st.sidebar.multiselect("组合标（可多选，默认留空）", ["bitcoin","ethereum","solana","dogecoin","cardano","ripple","polkadot"], default=[])
-    interval = st.sidebar.selectbox("K线周期（映射）", ["1d","1w","1M","max"], index=0, help="CoinGecko/TokenInsight 免费接口多为日级/周级聚合，不提供细分分钟线。")
+    
+    # 使用会话状态保存周期选择
+    interval_options = ["1d","1w","1M","max"]
+    default_index = interval_options.index(st.session_state.interval_selection) if st.session_state.interval_selection in interval_options else 0
+    interval = st.sidebar.selectbox(
+        "K线周期（映射）", 
+        interval_options, 
+        index=default_index, 
+        help="CoinGecko/TokenInsight 免费接口多为日级/周级聚合，不提供细分分钟线。"
+    )
+    
 elif source in ["OKX 公共行情（免API）", "OKX API（可填API基址）"]:
     symbol = st.sidebar.selectbox("个标（OKX InstId）", ["BTC-USDT","ETH-USDT","SOL-USDT","XRP-USDT","DOGE-USDT"], index=1)
     combo_symbols = st.sidebar.multiselect("组合标（可多选，默认留空）", ["BTC-USDT","ETH-USDT","SOL-USDT","XRP-USDT","DOGE-USDT"], default=[])
-    interval = st.sidebar.selectbox("K线周期", ["1m","3m","5m","15m","30m","1H","2H","4H","6H","12H","1D","1W","1M"], index=10)
+    
+    # 使用会话状态保存周期选择
+    interval_options = ["1m","3m","5m","15m","30m","1H","2H","4H","6H","12H","1D","1W","1M"]
+    default_index = interval_options.index(st.session_state.interval_selection) if st.session_state.interval_selection in interval_options else 10
+    interval = st.sidebar.selectbox(
+        "K线周期", 
+        interval_options, 
+        index=default_index
+    )
+    
 else:
     symbol = st.sidebar.selectbox("个标（美股/A股）", ["AAPL","TSLA","MSFT","NVDA","600519.SS","000001.SS"], index=0)
     combo_symbols = st.sidebar.multiselect("组合标（可多选，默认留空）", ["AAPL","TSLA","MSFT","NVDA","600519.SS","000001.SS"], default=[])
-    interval = st.sidebar.selectbox("K线周期", ["1d","1wk","1mo"], index=0)
+    
+    # 使用会话状态保存周期选择
+    interval_options = ["1d","1wk","1mo"]
+    default_index = interval_options.index(st.session_state.interval_selection) if st.session_state.interval_selection in interval_options else 0
+    interval = st.sidebar.selectbox(
+        "K线周期", 
+        interval_options, 
+        index=default_index
+    )
+
+# 更新会话状态中的周期选择
+st.session_state.interval_selection = interval
 
 # ========================= Sidebar: ③ 指标与参数（顶级交易员常用） =========================
 st.sidebar.header("③ 指标与参数（顶级交易员常用）")
