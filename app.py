@@ -1102,7 +1102,7 @@ fig_c.update_layout(hoverlabel=dict(namelength=-1))
 # === 交互增强结束 ===
 
 st.plotly_chart(fig_c, use_container_width=True)
-    if len(res["trades"])>0:
+if len(res["trades"])>0:
         st.plotly_chart(px.histogram(res["trades"], nbins=20, title="单笔收益分布（组合策略）"), use_container_width=True)
     else:
         st.info("组合策略暂无闭合交易样本。")
