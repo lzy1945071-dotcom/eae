@@ -613,16 +613,18 @@ if use_kdj and all(c in dfi.columns for c in ["KDJ_K","KDJ_D","KDJ_J"]):
 fig.update_layout(
     xaxis=dict(
         rangeslider=dict(visible=False),
-        showspikes=True, spikemode="across", spikesnap="cursor", showline=True
+        showspikes=True,
+        spikemode="across",
+        spikesnap="cursor"
     ),
-    yaxis=dict(domain=[0.58, 1.0], title="价格", showspikes=True, spikemode="across", spikesnap="cursor", showline=True),
+    height=1000,
+    hovermode="x unified",
+    dragmode="pan",
+    yaxis=dict(domain=[0.58, 1.0], title="价格", showspikes=True, spikemode="across", spikesnap="cursor"),
     yaxis2=dict(domain=[0.45, 0.57], title="成交量", showgrid=False),
     yaxis3=dict(domain=[0.25, 0.44], title="MACD", showgrid=False),
     yaxis4=dict(domain=[0.15, 0.24], title="RSI", showgrid=False, range=[0,100]),
     yaxis5=dict(domain=[0.0, 0.14], title="KDJ", showgrid=False, range=[0,100]),
-    hovermode="x unified",
-    height=1000,
-    dragmode="pan",
     modebar_add=["drawline","drawopenpath","drawclosedpath","drawcircle","drawrect","eraseshape"],
     legend=dict(
         orientation="h",
