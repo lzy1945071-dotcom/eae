@@ -535,7 +535,7 @@ if "Volume" in dfi.columns and not dfi["Volume"].isna().all():
         opacity=0.7
     ))
 
-# 添加MACD副图 - 默认隐藏
+# 添加MACD副图 - 默认显示
 if use_macd and all(c in dfi.columns for c in ["MACD","MACD_signal","MACD_hist"]):
     fig.add_trace(go.Scatter(
         x=dfi.index, 
@@ -543,8 +543,7 @@ if use_macd and all(c in dfi.columns for c in ["MACD","MACD_signal","MACD_hist"]
         name="MACD", 
         yaxis="y3", 
         mode="lines",
-        line=dict(color="#3366cc"),
-        visible="legendonly"  # 默认隐藏
+        line=dict(color="#3366cc")
     ))
     fig.add_trace(go.Scatter(
         x=dfi.index, 
@@ -552,8 +551,7 @@ if use_macd and all(c in dfi.columns for c in ["MACD","MACD_signal","MACD_hist"]
         name="Signal", 
         yaxis="y3", 
         mode="lines",
-        line=dict(color="#ff9900"),
-        visible="legendonly"  # 默认隐藏
+        line=dict(color="#ff9900")
     ))
     fig.add_trace(go.Bar(
         x=dfi.index, 
@@ -561,8 +559,7 @@ if use_macd and all(c in dfi.columns for c in ["MACD","MACD_signal","MACD_hist"]
         name="MACD 柱", 
         yaxis="y3", 
         opacity=0.4,
-        marker_color=np.where(dfi["MACD_hist"] >= 0, "#00cc96", "#ef553b"),
-        visible="legendonly"  # 默认隐藏
+        marker_color=np.where(dfi["MACD_hist"] >= 0, "#00cc96", "#ef553b")
     ))
 
 # 添加RSI副图 - 默认隐藏
@@ -573,8 +570,7 @@ if use_rsi and "RSI" in dfi.columns:
         name="RSI", 
         yaxis="y4", 
         mode="lines",
-        line=dict(color="#17becf"),
-        visible="legendonly"  # 默认隐藏
+        line=dict(color="#17becf")
     ))
     # 添加RSI超买超卖线
     fig.add_hline(y=70, line_dash="dash", line_color="red", yref="y4", opacity=0.5)
