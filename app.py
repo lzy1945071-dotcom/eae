@@ -149,6 +149,7 @@ weekly_loss_limit = st.sidebar.number_input("每周亏损阈值（%）", min_val
 
 # ========================= 添加手动刷新按钮 =========================
 col1, col2, col3 = st.columns([6, 1, 2])
+
 with col2:
     if st.button("🔄 刷新", use_container_width=True, key="refresh_button"):
         # 增加刷新计数器以强制刷新数据
