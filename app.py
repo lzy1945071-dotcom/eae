@@ -611,10 +611,6 @@ if use_kdj and all(c in dfi.columns for c in ["KDJ_K","KDJ_D","KDJ_J"]):
 
 # 更新图表布局
 fig.update_layout(
-    xaxis_rangeslider_visible=False,
-    height=1000,
-    hovermode="x unified",
-fig.update_layout(
     xaxis=dict(
         rangeslider=dict(visible=False),
         showspikes=True, spikemode="across", spikesnap="cursor", showline=True
