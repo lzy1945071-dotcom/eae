@@ -156,8 +156,9 @@ with col2:
         # 更新刷新时间和显示状态
         st.session_state.last_refresh_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         st.session_state.show_checkmark = True
-        # 使用JavaScript刷新页面
-        st.experimental_rerun()
+        st.session_state.force_refresh = True
+        # 使用兼容性更好的方法刷新页面
+        st.experimental_set_query_params(refresh=st.session_state.refresh_counter)
 
 # 显示刷新确认和时间
 with col3:
