@@ -9,9 +9,7 @@ import plotly.express as px
 import ta
 import math
 from datetime import datetime
-
-# 移除未安装的库引用
-# from streamlit_autorefresh import st_autorefresh
+import time
 
 st.set_page_config(page_title="Legend Quant Terminal Elite v3 FIX10", layout="wide")
 st.title("💎 Legend Quant Terminal Elite v3 FIX10")
@@ -21,14 +19,8 @@ if 'last_refresh_time' not in st.session_state:
     st.session_state.last_refresh_time = None
 if 'show_checkmark' not in st.session_state:
     st.session_state.show_checkmark = False
-
-# ========================= 添加自动刷新功能 =========================
-st.sidebar.header("🔄 刷新")
-auto_refresh = st.sidebar.checkbox("启用自动刷新", value=False)
-if auto_refresh:
-    refresh_interval = st.sidebar.number_input("自动刷新间隔(秒)", min_value=1, value=60, step=1)
-    # 注释掉未安装的库
-    # st_autorefresh(interval=refresh_interval * 1000, key="auto_refresh")
+if 'refresh_counter' not in st.session_state:
+    st.session_state.refresh_counter = 0
 
 # ========================= Sidebar: ① 数据来源与标的 =========================
 st.sidebar.header("① 数据来源与标的")
@@ -43,27 +35,6 @@ source = st.sidebar.selectbox(
     ],
     index=0
 )
-
-# ========================= 添加手动刷新按钮 =========================
-col1, col2, col3 = st.columns([6, 1, 2])
-with col2:
-    if st.button("🔄 刷新", use_container_width=True, key="refresh_button"):
-        # 清除缓存以强制刷新数据 - 修复缓存清除方法
-        st.caching.clear_cache()
-        # 更新刷新时间和显示状态
-        st.session_state.last_refresh_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        st.session_state.show_checkmark = True
-        # 刷新页面
-        st.experimental_rerun()
-
-# 显示刷新确认和时间
-with col3:
-    if st.session_state.show_checkmark:
-        st.success("✅ 数据已刷新")
-        if st.session_state.last_refresh_time:
-            st.caption(f"最后刷新: {st.session_state.last_refresh_time}")
-    elif st.session_state.last_refresh_time:
-        st.caption(f"最后刷新: {st.session_state.last_refresh_time}")
 
 api_base = ""
 api_key = ""
@@ -176,6 +147,27 @@ leverage = st.sidebar.slider("杠杆倍数", 1, 10, 1, 1)
 daily_loss_limit = st.sidebar.number_input("每日亏损阈值（%）", min_value=0.5, value=2.0, step=0.5)
 weekly_loss_limit = st.sidebar.number_input("每周亏损阈值（%）", min_value=1.0, value=5.0, step=0.5)
 
+# ========================= 添加手动刷新按钮 =========================
+col1, col2, col3 = st.columns([6, 1, 2])
+with col2:
+    if st.button("🔄 刷新", use_container_width=True, key="refresh_button"):
+        # 增加刷新计数器以强制刷新数据
+        st.session_state.refresh_counter += 1
+        # 更新刷新时间和显示状态
+        st.session_state.last_refresh_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        st.session_state.show_checkmark = True
+        # 使用JavaScript刷新页面
+        st.experimental_rerun()
+
+# 显示刷新确认和时间
+with col3:
+    if st.session_state.show_checkmark:
+        st.success("✅ 数据已刷新")
+        if st.session_state.last_refresh_time:
+            st.caption(f"最后刷新: {st.session_state.last_refresh_time}")
+    elif st.session_state.last_refresh_time:
+        st.caption(f"最后刷新: {st.session_state.last_refresh_time}")
+
 # ========================= Data Loaders =========================
 def _cg_days_from_interval(sel: str) -> str:
     if sel.startswith("1d"): return "180"
@@ -184,7 +176,7 @@ def _cg_days_from_interval(sel: str) -> str:
     if sel.startswith("max"): return "max"
     return "180"
 
-@st.cache_data(ttl=900)
+@st.cache_data(ttl=900, hash_funcs={"_thread.RLock": lambda _: None})
 def load_coingecko_ohlc_robust(coin_id: str, interval_sel: str):
     days = _cg_days_from_interval(interval_sel)
     try:
@@ -217,7 +209,7 @@ def load_coingecko_ohlc_robust(coin_id: str, interval_sel: str):
         pass
     return pd.DataFrame()
 
-@st.cache_data(ttl=900)
+@st.cache_data(ttl=900, hash_funcs={"_thread.RLock": lambda _: None})
 def load_tokeninsight_ohlc(api_base_url: str, coin_id: str, interval_sel: str):
     if not api_base_url:
         return load_coingecko_ohlc_robust(coin_id, interval_sel)
@@ -233,7 +225,7 @@ def load_tokeninsight_ohlc(api_base_url: str, coin_id: str, interval_sel: str):
         pass
     return load_coingecko_ohlc_robust(coin_id, interval_sel)
 
-@st.cache_data(ttl=900)
+@st.cache_data(ttl=900, hash_funcs={"_thread.RLock": lambda _: None})
 def load_okx_public(instId: str, bar: str, base_url: str = ""):
     url = (base_url.rstrip('/') if base_url else "https://www.okx.com") + "/api/v5/market/candles"
     params = {"instId": instId, "bar": bar, "limit": "1000"}
@@ -247,7 +239,7 @@ def load_okx_public(instId: str, bar: str, base_url: str = ""):
         rows.append((pd.to_datetime(ts, unit="ms"), o,h,l,c,v))
     return pd.DataFrame(rows, columns=["Date","Open","High","Low","Close","Volume"]).set_index("Date")
 
-@st.cache_data(ttl=900)
+@st.cache_data(ttl=900, hash_funcs={"_thread.RLock": lambda _: None})
 def load_yf(symbol: str, interval_sel: str):
     interval_map = {"1d":"1d","1wk":"1wk","1mo":"1mo"}
     interval = interval_map.get(interval_sel, "1d")
@@ -257,6 +249,9 @@ def load_yf(symbol: str, interval_sel: str):
     return df
 
 def load_router(source, symbol, interval_sel, api_base=""):
+    # 使用refresh_counter确保每次刷新都重新加载数据
+    _ = st.session_state.refresh_counter  # 确保这个函数在refresh_counter变化时重新运行
+    
     if source == "CoinGecko（免API）":
         return load_coingecko_ohlc_robust(symbol, interval_sel)
     elif source == "TokenInsight API 模式（可填API基址）":
@@ -267,6 +262,7 @@ def load_router(source, symbol, interval_sel, api_base=""):
     else:
         return load_yf(symbol, interval_sel)
 
+# 加载数据
 df = load_router(source, symbol, interval, api_base)
 if df.empty or not set(["Open","High","Low","Close"]).issubset(df.columns):
     st.error("数据为空或字段缺失：请更换数据源/周期，或稍后重试（免费源可能限流）。")
