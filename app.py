@@ -44,7 +44,7 @@ source = st.sidebar.selectbox(
 # ========================= 添加手动刷新按钮 =========================
 col1, col2, col3 = st.columns([6, 1, 2])
 with col2:
-    if st.button("🔄 刷新数据", use_container_width=True, key="refresh_button"):
+    if st.button("🔄 刷新", use_container_width=True, key="refresh_button"):
         # 清除缓存以强制刷新数据
         st.cache_data.clear()
         # 更新刷新时间和显示状态
