@@ -14,6 +14,12 @@ from streamlit_autorefresh import st_autorefresh
 st.set_page_config(page_title="Legend Quant Terminal Elite v3 FIX10", layout="wide")
 st.title("💎 Legend Quant Terminal Elite v3 FIX10")
 
+# 初始化会话状态
+if 'last_refresh_time' not in st.session_state:
+    st.session_state.last_refresh_time = None
+if 'show_checkmark' not in st.session_state:
+    st.session_state.show_checkmark = False
+
 # ========================= 添加自动刷新功能 =========================
 st.sidebar.header("🔄 刷新设置")
 auto_refresh = st.sidebar.checkbox("启用自动刷新", value=False)
@@ -36,12 +42,25 @@ source = st.sidebar.selectbox(
 )
 
 # ========================= 添加手动刷新按钮 =========================
-col1, col2 = st.columns([6, 1])
+col1, col2, col3 = st.columns([6, 1, 2])
 with col2:
-    if st.button("🔄 刷新数据", use_container_width=True):
-        # 清除缓存以强制刷新数据，但不重置视图状态
+    if st.button("🔄 刷新数据", use_container_width=True, key="refresh_button"):
+        # 清除缓存以强制刷新数据
         st.cache_data.clear()
-        st.rerun()  # 修复: 使用 st.rerun() 替代 st.experimental_rerun()
+        # 更新刷新时间和显示状态
+        st.session_state.last_refresh_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        st.session_state.show_checkmark = True
+        # 刷新页面
+        st.rerun()
+
+# 显示刷新确认和时间
+with col3:
+    if st.session_state.show_checkmark:
+        st.success("✅ 数据已刷新")
+        if st.session_state.last_refresh_time:
+            st.caption(f"最后刷新: {st.session_state.last_refresh_time}")
+    elif st.session_state.last_refresh_time:
+        st.caption(f"最后刷新: {st.session_state.last_refresh_time}")
 
 api_base = ""
 api_key = ""
