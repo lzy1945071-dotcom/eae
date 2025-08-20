@@ -21,7 +21,7 @@ if 'show_checkmark' not in st.session_state:
     st.session_state.show_checkmark = False
 
 # ========================= 添加自动刷新功能 =========================
-st.sidebar.header("🔄 刷新设置")
+st.sidebar.header("🔄 刷新")
 auto_refresh = st.sidebar.checkbox("启用自动刷新", value=False)
 if auto_refresh:
     refresh_interval = st.sidebar.number_input("自动刷新间隔(秒)", min_value=1, value=60, step=1)
