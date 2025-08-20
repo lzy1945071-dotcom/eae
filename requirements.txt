@@ -3,3 +3,5 @@ plotly
 pandas
 requests
 numpy
+yfinance 
+ta
