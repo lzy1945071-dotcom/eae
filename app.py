@@ -678,10 +678,12 @@ fig.update_layout(
     xaxis_rangeslider_visible=False,
     height=1000,
     dragmode="pan",
-    yaxis2=dict(domain=[0.45, 0.57], title="成交量", showgrid=False),
-    yaxis3=dict(domain=[0.25, 0.44], title="MACD", showgrid=False),
-    yaxis4=dict(domain=[0.15, 0.24], title="RSI", showgrid=False, range=[0,100]),
-    yaxis5=dict(domain=[0.0, 0.14], title="KDJ", showgrid=False, range=[0,100]),
+    # 修改y轴的domain设置，将主K线图放在上方，副图放在下方
+    yaxis=dict(domain=[0.35, 1.0], title="价格"),  # 主K线图占据上方65%的空间
+    yaxis2=dict(domain=[0.25, 0.34], title="成交量", showgrid=False, anchor="x"),
+    yaxis3=dict(domain=[0.15, 0.24], title="MACD", showgrid=False, anchor="x"),
+    yaxis4=dict(domain=[0.05, 0.14], title="RSI", showgrid=False, range=[0,100], anchor="x"),
+    yaxis5=dict(domain=[0.0, 0.04], title="KDJ", showgrid=False, range=[0,100], anchor="x"),
     modebar_add=["drawline","drawopenpath","drawclosedpath","drawcircle","drawrect","eraseshape"],
     legend=dict(
         orientation="h",
@@ -689,15 +691,9 @@ fig.update_layout(
         y=1.02,
         xanchor="right",
         x=1
-    )
-,
+    ),
     uirevision='constant'
 )
-st.plotly_chart(fig, use_container_width=True, config={
-    "scrollZoom": True,
-    "displayModeBar": True,
-    "displaylogo": False
-})
 
 # ========================= 实时策略建议（增强版） =========================
 st.markdown("---")
