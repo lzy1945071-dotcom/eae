@@ -728,6 +728,12 @@ if page == 'K线图':
     })
 
 elif page == '实时策略':
+    dfi = st.session_state.get('dfi')
+    last = st.session_state.get('last')
+    if dfi is None or last is None:
+        st.warning('数据为空，请先在「K线图」页面加载或刷新数据')
+        st.stop()
+
     # ========================= 实时策略建议（增强版） =========================
     st.markdown("---")
     st.subheader("🧭 实时策略建议（非投资建议）")
