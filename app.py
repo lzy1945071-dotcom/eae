@@ -14,6 +14,8 @@ st.set_page_config(page_title='Legend Quant Terminal Elite v3 FIX10', layout='wi
 
 st.sidebar.title('功能导航')
 page = st.sidebar.radio('切换页面', ['K线图', '实时策略'])
+coin_id = st.sidebar.selectbox('选择币种', ['bitcoin', 'ethereum', 'dogecoin'], key='coin_id')
+interval_sel = st.sidebar.selectbox('选择周期', ['1d', '4h', '1h'], key='interval_sel')
 
 # ===== Safety helpers =====
 def _safe_last(df):
@@ -37,6 +39,15 @@ if 'last' not in globals():
     # app.py — Legend Quant Terminal Elite v3 FIX10 (TV风格 + 多指标 + 实时策略增强)
 
 if page == 'K线图':
+    if st.button('刷新数据'):
+        dfi = load_cg_ohlc(coin_id, interval_sel)
+        st.session_state['dfi'] = dfi
+        st.session_state['last'] = _safe_last(dfi)
+    dfi = st.session_state.get('dfi')
+    last = st.session_state.get('last')
+    if dfi is None or last is None:
+        st.warning('数据为空，请点击刷新按钮加载数据')
+        st.stop()
     st.title("💎 Legend Quant Terminal Elite v3 FIX10")
 
     # 初始化会话状态
@@ -728,6 +739,15 @@ if page == 'K线图':
     })
 
 elif page == '实时策略':
+    if st.button('刷新数据'):
+        dfi = load_cg_ohlc(coin_id, interval_sel)
+        st.session_state['dfi'] = dfi
+        st.session_state['last'] = _safe_last(dfi)
+    dfi = st.session_state.get('dfi')
+    last = st.session_state.get('last')
+    if dfi is None or last is None:
+        st.warning('数据为空，请点击刷新按钮加载数据')
+        st.stop()
     dfi = st.session_state.get('dfi')
     last = st.session_state.get('last')
     if dfi is None or last is None:
