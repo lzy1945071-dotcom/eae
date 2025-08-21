@@ -15,9 +15,24 @@ st.set_page_config(page_title='Legend Quant Terminal Elite v3 FIX10', layout='wi
 st.sidebar.title('功能导航')
 page = st.sidebar.radio('切换页面', ['K线图', '实时策略'])
 
-# 初始化全局变量
-dfi = None
-last = None
+# ===== Safety helpers =====
+def _safe_last(df):
+    import pandas as _pd
+    if df is None:
+        return None
+    try:
+        if isinstance(df, _pd.DataFrame) and not df.dropna().empty:
+            return df.dropna().iloc[-1]
+    except Exception:
+        return None
+    return None
+
+# Global defaults to avoid NameError
+if 'dfi' not in globals():
+    dfi = None
+if 'last' not in globals():
+    last = None
+
 
     # app.py — Legend Quant Terminal Elite v3 FIX10 (TV风格 + 多指标 + 实时策略增强)
 
@@ -25,11 +40,19 @@ if page == 'K线图':
     st.title("💎 Legend Quant Terminal Elite v3 FIX10")
 
     # 初始化会话状态
+    if 'last_refresh_time' not in st.session_state:
+        st.session_state.last_refresh_time = None
     if 'show_checkmark' not in st.session_state:
         st.session_state.show_checkmark = False
+    if 'refresh_counter' not in st.session_state:
+        st.session_state.refresh_counter = 0
 
     # ========================= 添加自动刷新功能 =========================
     st.sidebar.header("🔄 刷新")
+    auto_refresh = st.sidebar.checkbox("启用自动刷新", value=False)
+    if auto_refresh:
+        refresh_interval = st.sidebar.number_input("自动刷新间隔(秒)", min_value=1, value=60, step=1)
+        st_autorefresh(interval=refresh_interval * 1000, key="auto_refresh")
 
 
 
@@ -162,15 +185,24 @@ if page == 'K线图':
     col1, col2, col3 = st.columns([6, 1, 2])
 
     with col2:
+        if st.button("🔄 刷新", use_container_width=True, key="refresh_button"):
             # 增加刷新计数器以强制刷新数据
+            st.session_state.refresh_counter += 1
             # 更新刷新时间和显示状态
+            st.session_state.last_refresh_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             st.session_state.show_checkmark = True
+            st.session_state.force_refresh = True
             # 使用兼容性更好的方法刷新页面
+            st.query_params['refresh'] = refresh=st.session_state.refresh_counter
 
     # 显示刷新确认和时间
     with col3:
         if st.session_state.show_checkmark:
             st.success("✅ 数据已刷新")
+            if st.session_state.last_refresh_time:
+                st.caption(f"最后刷新: {st.session_state.last_refresh_time}")
+        elif st.session_state.last_refresh_time:
+            st.caption(f"最后刷新: {st.session_state.last_refresh_time}")
 
     # ========================= Data Loaders =========================
     def _cg_days_from_interval(sel: str) -> str:
@@ -181,6 +213,7 @@ if page == 'K线图':
         return "180"
 
     @st.cache_data(ttl=900, hash_funcs={"_thread.RLock": lambda _: None})
+    def load_coingecko_ohlc_robust(coin_id: str, interval_sel: str):
         days = _cg_days_from_interval(interval_sel)
         try:
             url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/ohlc"
@@ -213,7 +246,9 @@ if page == 'K线图':
         return pd.DataFrame()
 
     @st.cache_data(ttl=900, hash_funcs={"_thread.RLock": lambda _: None})
+    def load_tokeninsight_ohlc(api_base_url: str, coin_id: str, interval_sel: str):
         if not api_base_url:
+            return load_coingecko_ohlc_robust(coin_id, interval_sel)
         try:
             url = f"{api_base_url.rstrip('/')}/ohlc"
             r = requests.get(url, params={"symbol": coin_id, "period": "1d"}, timeout=15)
@@ -224,8 +259,10 @@ if page == 'K线图':
                 return pd.DataFrame(rows, columns=["Date","Open","High","Low","Close"]).set_index("Date")
         except Exception:
             pass
+        return load_coingecko_ohlc_robust(coin_id, interval_sel)
 
     @st.cache_data(ttl=900, hash_funcs={"_thread.RLock": lambda _: None})
+    def load_okx_public(instId: str, bar: str, base_url: str = ""):
         url = (base_url.rstrip('/') if base_url else "https://www.okx.com") + "/api/v5/market/candles"
         params = {"instId": instId, "bar": bar, "limit": "1000"}
         r = requests.get(url, params=params, timeout=20)
@@ -239,6 +276,7 @@ if page == 'K线图':
         return pd.DataFrame(rows, columns=["Date","Open","High","Low","Close","Volume"]).set_index("Date")
 
     @st.cache_data(ttl=900, hash_funcs={"_thread.RLock": lambda _: None})
+    def load_yf(symbol: str, interval_sel: str):
         interval_map = {"1d":"1d","1wk":"1wk","1mo":"1mo"}
         interval = interval_map.get(interval_sel, "1d")
         df = yf.download(symbol, period="5y", interval=interval, progress=False, auto_adjust=False)
@@ -246,14 +284,22 @@ if page == 'K线图':
             df = df[["Open","High","Low","Close","Volume"]].dropna()
         return df
 
+    def load_router(source, symbol, interval_sel, api_base=""):
+        # 使用refresh_counter确保每次刷新都重新加载数据
+        _ = st.session_state.refresh_counter  # 确保这个函数在refresh_counter变化时重新运行
     
         if source == "CoinGecko（免API）":
+            return load_coingecko_ohlc_robust(symbol, interval_sel)
         elif source == "TokenInsight API 模式（可填API基址）":
+            return load_tokeninsight_ohlc(api_base, symbol, interval_sel)
         elif source in ["OKX 公共行情（免API）", "OKX API（可填API基址）"]:
             base = api_base if source == "OKX API（可填API基址）" else ""
+            return load_okx_public(symbol, interval_sel, base_url=base)
         else:
+            return load_yf(symbol, interval_sel)
 
     # 加载数据
+    df = load_router(source, symbol, interval, api_base)
     if df.empty or not set(["Open","High","Low","Close"]).issubset(df.columns):
         st.error("数据为空或字段缺失：请更换数据源/周期，或稍后重试（免费源可能限流）。")
         st.stop()
@@ -343,8 +389,12 @@ if page == 'K线图':
 
         return out
 
+    dfi = add_indicators(df).dropna(how="all")
+    dfi["hovertext"] = [
         f"日期: {d:%Y-%m-%d}<br>收盘: {c:.2f}<br>成交量: {v}"
+        for d, c, v in zip(dfi.index, dfi["Close"], dfi["Volume"])
     ]
+    dfi["_VolumeForHover"] = dfi["Volume"]
 
     # ========================= 信号检测函数 =========================
     def detect_signals(df):
@@ -397,6 +447,7 @@ if page == 'K线图':
         return signals
 
     # 检测信号
+    signals = detect_signals(dfi)
 
     # ========================= 支撑阻力计算 =========================
     def calculate_support_resistance(df, window=20):
@@ -416,6 +467,7 @@ if page == 'K线图':
     
         return support, resistance
 
+    support, resistance = calculate_support_resistance(dfi)
 
     # ========================= TradingView 风格图表 =========================
     st.subheader(f"🕯️ K线（{symbol} / {source} / {interval}）")
@@ -425,27 +477,44 @@ if page == 'K线图':
         # choose volume column
         volume_col = None
         for _cand in ["Volume","volume","vol","Vol","amt"]:
+            if _cand in dfi.columns:
                 volume_col = _cand
                 break
         if volume_col is None:
             volume_col = "_VolumeForHover"
 
         # Signal column optional
+        _has_signal = "Signal" in dfi.columns
+        _time_str = dfi.index.astype(str)
+        dfi["hovertext"] = (
             "Time: " + _time_str +
+            "<br>Open: " + dfi["Open"].astype(str) +
+            "<br>High: " + dfi["High"].astype(str) +
+            "<br>Low: " + dfi["Low"].astype(str) +
+            "<br>Close: " + dfi["Close"].astype(str) +
+            "<br>Volume: " + dfi[volume_col].astype(str)
         )
         if _has_signal:
+            dfi["hovertext"] = dfi["hovertext"] + "<br>Signal: " + dfi["Signal"].astype(str)
     except Exception as _e:
         # fallback: minimal hovertext
+        dfi["hovertext"] = "Time: " + dfi.index.astype(str)
 
     # --- Determine volume column for hover ---
     volume_col = None
     for cand in ["Volume", "volume", "vol", "Vol", "amt"]:
+        if cand in dfi.columns:
             volume_col = cand
             break
     if volume_col is None:
         volume_col = "_VolumeForHover"
 
     fig.add_trace(
+        go.Candlestick(x=dfi.index,
+            open=dfi["Open"],
+            high=dfi["High"],
+            low=dfi["Low"],
+            close=dfi["Close"],
             name="K线",
         
             )
@@ -457,7 +526,10 @@ if page == 'K线图':
         ma_colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"]
         for i, p in enumerate(parse_int_list(ma_periods_text)):
             col = f"MA{p}"
+            if col in dfi.columns: 
                 fig.add_trace(go.Scatter(
+                    x=dfi.index, 
+                    y=dfi[col], 
                     mode="lines", 
                     name=col, 
                     yaxis="y",
@@ -469,7 +541,10 @@ if page == 'K线图':
         ema_colors = ["#3366cc", "#dc3912", "#ff9900", "#109618", "#990099", "#0099c6", "#dd4477", "#66aa00", "#b82e2e", "#316395"]
         for i, p in enumerate(parse_int_list(ema_periods_text)):
             col = f"EMA{p}"
+            if col in dfi.columns: 
                 fig.add_trace(go.Scatter(
+                    x=dfi.index, 
+                    y=dfi[col], 
                     mode="lines", 
                     name=col, 
                     yaxis="y",
@@ -480,7 +555,10 @@ if page == 'K线图':
     if use_boll:
         boll_colors = ["#3d9970", "#ff4136", "#85144b"]
         for i, (col, nm) in enumerate([("BOLL_U","BOLL 上轨"),("BOLL_M","BOLL 中轨"),("BOLL_L","BOLL 下轨")]):
+            if col in dfi.columns: 
                 fig.add_trace(go.Scatter(
+                    x=dfi.index, 
+                    y=dfi[col], 
                     mode="lines", 
                     name=nm, 
                     yaxis="y",
@@ -490,6 +568,7 @@ if page == 'K线图':
 
     # 添加支撑阻力线 - 默认隐藏
     fig.add_trace(go.Scatter(
+        x=dfi.index, 
         y=support, 
         mode="lines", 
         name="支撑", 
@@ -498,6 +577,7 @@ if page == 'K线图':
         visible="legendonly"  # 默认隐藏
     ))
     fig.add_trace(go.Scatter(
+        x=dfi.index, 
         y=resistance, 
         mode="lines", 
         name="阻力", 
@@ -511,6 +591,7 @@ if page == 'K线图':
     sell_signals = signals[signals.isin(["Sell"]).any(axis=1)]
 
     if not buy_signals.empty:
+        buy_points = dfi.loc[buy_signals.index]
         fig.add_trace(go.Scatter(
             x=buy_points.index, 
             y=buy_points["Low"] * 0.99, 
@@ -521,6 +602,7 @@ if page == 'K线图':
         ))
 
     if not sell_signals.empty:
+        sell_points = dfi.loc[sell_signals.index]
         fig.add_trace(go.Scatter(
             x=sell_points.index, 
             y=sell_points["High"] * 1.01, 
@@ -531,7 +613,11 @@ if page == 'K线图':
         ))
 
     # 添加成交量 - 默认显示
+    vol_colors = np.where(dfi["Close"] >= dfi["Open"], "rgba(38,166,91,0.7)", "rgba(239,83,80,0.7)")
+    if "Volume" in dfi.columns and not dfi["Volume"].isna().all():
         fig.add_trace(go.Bar(
+            x=dfi.index, 
+            y=dfi["Volume"], 
             name="成交量", 
             yaxis="y2", 
             marker_color=vol_colors,
@@ -539,26 +625,37 @@ if page == 'K线图':
         ))
 
     # 添加MACD副图 - 默认显示
+    if use_macd and all(c in dfi.columns for c in ["MACD","MACD_signal","MACD_hist"]):
         fig.add_trace(go.Scatter(
+            x=dfi.index, 
+            y=dfi["MACD"], 
             name="MACD", 
             yaxis="y3", 
             mode="lines",
             line=dict(color="#3366cc")
         ))
         fig.add_trace(go.Scatter(
+            x=dfi.index, 
+            y=dfi["MACD_signal"], 
             name="Signal", 
             yaxis="y3", 
             mode="lines",
             line=dict(color="#ff9900")
         ))
         fig.add_trace(go.Bar(
+            x=dfi.index, 
+            y=dfi["MACD_hist"], 
             name="MACD 柱", 
             yaxis="y3", 
             opacity=0.4,
+            marker_color=np.where(dfi["MACD_hist"] >= 0, "#00cc96", "#ef553b")
         ))
 
     # 添加RSI副图 - 默认隐藏
+    if use_rsi and "RSI" in dfi.columns:
         fig.add_trace(go.Scatter(
+            x=dfi.index, 
+            y=dfi["RSI"], 
             name="RSI", 
             yaxis="y4", 
             mode="lines",
@@ -569,7 +666,10 @@ if page == 'K线图':
         fig.add_hline(y=30, line_dash="dash", line_color="green", yref="y4", opacity=0.5)
 
     # 添加KDJ副图 - 默认隐藏
+    if use_kdj and all(c in dfi.columns for c in ["KDJ_K","KDJ_D","KDJ_J"]):
         fig.add_trace(go.Scatter(
+            x=dfi.index, 
+            y=dfi["KDJ_K"], 
             name="KDJ_K", 
             yaxis="y5", 
             mode="lines",
@@ -577,6 +677,8 @@ if page == 'K线图':
             visible="legendonly"  # 默认隐藏
         ))
         fig.add_trace(go.Scatter(
+            x=dfi.index, 
+            y=dfi["KDJ_D"], 
             name="KDJ_D", 
             yaxis="y5", 
             mode="lines",
@@ -584,6 +686,8 @@ if page == 'K线图':
             visible="legendonly"  # 默认隐藏
         ))
         fig.add_trace(go.Scatter(
+            x=dfi.index, 
+            y=dfi["KDJ_J"], 
             name="KDJ_J", 
             yaxis="y5", 
             mode="lines",
@@ -628,27 +732,36 @@ elif page == '实时策略':
     st.markdown("---")
     st.subheader("🧭 实时策略建议（非投资建议）")
 
+    last = _safe_last(dfi)
+    if last is None:
+        st.warning('数据为空，请先在「K线图」页面加载或刷新数据')
+        st.stop()
     price = float(last["Close"])
 
     # 1) 趋势/动能评分
     score = 0; reasons = []
+    ma20 = dfi["MA20"].iloc[-1] if "MA20" in dfi.columns else np.nan
+    ma50 = dfi["MA50"].iloc[-1] if "MA50" in dfi.columns else np.nan
     if not np.isnan(ma20) and not np.isnan(ma50):
         if ma20 > ma50 and price > ma20:
             score += 2; reasons.append("MA20>MA50 且价在MA20上，多头趋势")
         elif ma20 < ma50 and price < ma20:
             score -= 2; reasons.append("MA20<MA50 且价在MA20下，空头趋势")
 
+    if use_macd and all(c in dfi.columns for c in ["MACD","MACD_signal","MACD_hist"]):
         if last["MACD"] > last["MACD_signal"] and last["MACD_hist"] > 0:
             score += 2; reasons.append("MACD 金叉且柱为正")
         elif last["MACD"] < last["MACD_signal"] and last["MACD_hist"] < 0:
             score -= 2; reasons.append("MACD 死叉且柱为负")
 
+    if use_rsi and "RSI" in dfi.columns:
         if last["RSI"] >= 70:
             score -= 1; reasons.append("RSI 过热（≥70）")
         elif last["RSI"] <= 30:
             score += 1; reasons.append("RSI 超卖（≤30）")
 
     # KDJ信号评分
+    if use_kdj and all(c in dfi.columns for c in ["KDJ_K","KDJ_D"]):
         if last["KDJ_K"] > last["KDJ_D"] and last["KDJ_K"] < 30:
             score += 1; reasons.append("KDJ 金叉且处于超卖区")
         elif last["KDJ_K"] < last["KDJ_D"] and last["KDJ_K"] > 70:
@@ -659,14 +772,22 @@ elif page == '实时策略':
     elif score <= -2: decision = "减仓/离场"
 
     # 2) 历史百分位（最近窗口）
+    hist_window = min(len(dfi), 365)
+    recent_close = dfi["Close"].iloc[-hist_window:]
     pct_rank = float((recent_close <= price).mean()) * 100 if hist_window > 1 else 50.0
 
     # 3) 支撑位/压力位（最近N根）
     N = 20
+    recent_high = dfi["High"].iloc[-N:]
+    recent_low = dfi["Low"].iloc[-N:]
+    support_zone = (recent_low.min(), dfi["Close"].iloc[-N:].min())
+    resist_zone = (dfi["Close"].iloc[-N:].max(), recent_high.max())
 
     # 4) ATR 止盈止损
+    if use_atr and "ATR" in dfi.columns and not np.isnan(last["ATR"]):
         atr_val = float(last["ATR"])
     else:
+        atr_val = float(dfi["Close"].pct_change().rolling(14).std().iloc[-1] * price)
     tp = price + 2.0*atr_val if decision != "减仓/离场" else price - 2.0*atr_val
     sl = price - 1.2*atr_val if decision != "减仓/离场" else price + 1.2*atr_val
 
@@ -720,6 +841,7 @@ elif page == '实时策略':
 
     st.markdown("---")
     st.subheader("📈 策略胜率与净值")
+    equity, pnl, win_rate, mdd = simple_backtest(dfi)
     c1, c2, c3 = st.columns(3)
     c1.metric("历史胜率", f"{win_rate*100:.2f}%")
     c2.metric("最大回撤", f"{mdd*100:.2f}%")
@@ -737,6 +859,7 @@ elif page == '实时策略':
     # ========================= 风控面板（结果） =========================
     st.markdown("---")
     st.subheader("🛡️ 风控面板（结果）")
+    atr_for_pos = atr_val if atr_val and atr_val>0 else (dfi["Close"].pct_change().rolling(14).std().iloc[-1]*price)
     stop_distance = atr_for_pos / max(price, 1e-9)
     risk_amount = float(account_value) * (float(risk_pct)/100.0)
     position_value = risk_amount / max(stop_distance, 1e-6) / max(int(leverage),1)
@@ -753,9 +876,13 @@ elif page == '实时策略':
     def get_close_series(sym):
         try:
             if source == "CoinGecko（免API）":
+                d = load_coingecko_ohlc_robust(sym, interval)
             elif source == "TokenInsight API 模式（可填API基址）":
+                d = load_tokeninsight_ohlc(api_base, sym, interval)
             elif source in ["OKX 公共行情（免API）", "OKX API（可填API基址）"]:
+                d = load_okx_public(sym, interval, base_url=api_base if "OKX API" in source else "")
             else:
+                d = load_yf(sym, interval)
             return d["Close"].rename(sym) if not d.empty else None
         except Exception:
             return None
@@ -982,6 +1109,7 @@ elif page == '实时策略':
             "trades_count": int(len(trades))
         }
 
+    res = backtest_combo(dfi)
     if res is None:
         st.warning("所选构件不足以生成信号，请至少选择一个构件，并确保相关指标已在左侧勾选。")
     else:
