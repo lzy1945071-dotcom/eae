@@ -445,6 +445,42 @@ if page == '📊 K线 & 副图':
     # ========================= TradingView 风格图表 =========================
     st.subheader(f"🕯️ K线（{symbol} / {source} / {interval}）")
     fig = go.Figure()
+
+    # 检测买卖信号
+    signals = detect_signals(df) if 'detect_signals' in globals() else None
+    if signals is not None and not signals.empty:
+        buy_signals = signals[signals.isin(['Buy']).any(axis=1)]
+        sell_signals = signals[signals.isin(['Sell']).any(axis=1)]
+
+    # 在 K 线上绘制买入点（默认隐藏，通过图例点击开启）
+    if not buy_signals.empty:
+        fig.add_trace(go.Scatter(
+            x=buy_signals.index,
+            y=df.loc[buy_signals.index, 'Low'],
+            mode='markers',
+            marker_symbol='triangle-up',
+            marker_size=12,
+            marker_color='green',
+            name='Buy',
+            visible='legendonly'
+        ))
+
+    # 在 K 线上绘制卖出点（默认隐藏，通过图例点击开启）
+    if not sell_signals.empty:
+        fig.add_trace(go.Scatter(
+            x=sell_signals.index,
+            y=df.loc[sell_signals.index, 'High'],
+            mode='markers',
+            marker_symbol='triangle-down',
+            marker_size=12,
+            marker_color='red',
+            name='Sell',
+            visible='legendonly'
+        ))
+    else:
+        buy_signals = pd.DataFrame()
+        sell_signals = pd.DataFrame()
+
     # --- Build hovertext for candlestick (keep original precision) ---
     try:
         # choose volume column
