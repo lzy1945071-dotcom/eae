@@ -671,15 +671,21 @@ if use_kdj and all(c in dfi.columns for c in ["KDJ_K","KDJ_D","KDJ_J"]):
     fig.add_hline(y=20, line_dash="dash", line_color="green", yref="y5", opacity=0.5)
 
 # 更新图表布局
+# 更新图表布局部分需要替换为以下代码
 fig.update_layout(
     hovermode='x unified',
     xaxis=dict(showspikes=True, spikemode='across', spikesnap='cursor', showline=True),
-    yaxis=dict(showspikes=True, spikemode='across', spikesnap='cursor', showline=True),
+    yaxis=dict(
+        showspikes=True, 
+        spikemode='across', 
+        spikesnap='cursor', 
+        showline=True,
+        domain=[0.35, 1.0],  # 主K线图占据上方65%的空间
+        title="价格"
+    ),
     xaxis_rangeslider_visible=False,
     height=1000,
     dragmode="pan",
-    # 修改y轴的domain设置，将主K线图放在上方，副图放在下方
-    yaxis=dict(domain=[0.35, 1.0], title="价格"),  # 主K线图占据上方65%的空间
     yaxis2=dict(domain=[0.25, 0.34], title="成交量", showgrid=False, anchor="x"),
     yaxis3=dict(domain=[0.15, 0.24], title="MACD", showgrid=False, anchor="x"),
     yaxis4=dict(domain=[0.05, 0.14], title="RSI", showgrid=False, range=[0,100], anchor="x"),
