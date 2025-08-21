@@ -14,12 +14,14 @@ import time
 st.set_page_config(page_title="Legend Quant Terminal Elite v3 FIX10", layout="wide")
 
 # ===== 页面切换（Sidebar 置顶滑动条，1=K线图&副图；2=策略/回测等） =====
+if 'page' not in st.session_state:
+    st.session_state['page'] = 1
 st.sidebar.markdown('### 页面切换')
-page = st.sidebar.radio(
-    "选择页面",
-    ["📊 K线图", "📈 策略"],
-    help="选择要查看的模块"
+st.session_state['page'] = st.sidebar.slider(
+    '切换到页面', 1, 2, int(st.session_state['page']),
+    help='1：K线图 & 副图；2：策略回测等其他模块'
 )
+page = int(st.session_state['page'])
 
 st.title("💎 Legend Quant Terminal Elite v3 FIX10")
 
@@ -448,7 +450,7 @@ def calculate_support_resistance(df, window=20):
 
 support, resistance = calculate_support_resistance(dfi)
 
-if page == "📊 K线图":
+if page == 1:
     # ========================= TradingView 风格图表 =========================
     st.subheader(f"🕯️ K线（{symbol} / {source} / {interval}）")
     fig = go.Figure()
