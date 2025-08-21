@@ -1,5 +1,10 @@
 # app.py — Legend Quant Terminal Elite v3 FIX10 (TV风格 + 多指标 + 实时策略增强)
 import streamlit as st
+
+# ========================= WebGL 性能优化注入 =========================
+# 将 go.Scatter 改为 go.Scattergl（更流畅的 WebGL 渲染）
+# 注意：Plotly 的 Candlestick 本身不是 WebGL trace，仍为 SVG。
+
 import pandas as pd
 import numpy as np
 import requests
@@ -12,63 +17,6 @@ from datetime import datetime
 import time
 
 st.set_page_config(page_title="Legend Quant Terminal Elite v3 FIX10", layout="wide")
-
-
-# ========================= 页面缩放与上下翻页按钮 =========================
-# 缩放比例滑动条（放在侧边栏）
-zoom = st.sidebar.slider("页面缩放比例 (%)", 50, 120, 80, step=5)  # 默认 80%
-
-# 翻页步长设置（侧边栏）
-scroll_step = st.sidebar.number_input("翻页步长 (像素)", min_value=100, max_value=2000, value=600, step=100)
-
-# 动态 CSS + 浮动按钮
-st.markdown(
-    f"""
-    <style>
-    .block-container {{
-        transform: scale({zoom/100});
-        transform-origin: top center;
-    }}
-    .scroll-btn {{
-        position: fixed;
-        right: 20px;
-        background: none;
-        border: none;
-        cursor: pointer;
-        font-size: 28px;
-        z-index: 1000;
-        opacity: 0.6;
-    }}
-    .scroll-btn:hover {{
-        opacity: 1;
-    }}
-    #scroll-up {{
-        bottom: 80px;
-    }}
-    #scroll-down {{
-        bottom: 20px;
-    }}
-    </style>
-
-    <button id="scroll-up" class="scroll-btn">⬆️</button>
-    <button id="scroll-down" class="scroll-btn">⬇️</button>
-
-    <script>
-    const upBtn = document.getElementById("scroll-up");
-    const downBtn = document.getElementById("scroll-down");
-
-    upBtn.addEventListener("click", () => {{
-        window.scrollBy(0, -{scroll_step});
-    }});
-
-    downBtn.addEventListener("click", () => {{
-        window.scrollBy(0, {scroll_step});
-    }});
-    </script>
-    """,
-    unsafe_allow_html=True
-)
-
 st.title("💎 Legend Quant Terminal Elite v3 FIX10")
 
 # 初始化会话状态
@@ -556,7 +504,7 @@ if use_ma:
     for i, p in enumerate(parse_int_list(ma_periods_text)):
         col = f"MA{p}"
         if col in dfi.columns: 
-            fig.add_trace(go.Scatter(
+            fig.add_trace(go.Scattergl(
                 x=dfi.index, 
                 y=dfi[col], 
                 mode="lines", 
@@ -571,7 +519,7 @@ if use_ema:
     for i, p in enumerate(parse_int_list(ema_periods_text)):
         col = f"EMA{p}"
         if col in dfi.columns: 
-            fig.add_trace(go.Scatter(
+            fig.add_trace(go.Scattergl(
                 x=dfi.index, 
                 y=dfi[col], 
                 mode="lines", 
@@ -585,7 +533,7 @@ if use_boll:
     boll_colors = ["#3d9970", "#ff4136", "#85144b"]
     for i, (col, nm) in enumerate([("BOLL_U","BOLL 上轨"),("BOLL_M","BOLL 中轨"),("BOLL_L","BOLL 下轨")]):
         if col in dfi.columns: 
-            fig.add_trace(go.Scatter(
+            fig.add_trace(go.Scattergl(
                 x=dfi.index, 
                 y=dfi[col], 
                 mode="lines", 
@@ -596,7 +544,7 @@ if use_boll:
             ))
 
 # 添加支撑阻力线 - 默认隐藏
-fig.add_trace(go.Scatter(
+fig.add_trace(go.Scattergl(
     x=dfi.index, 
     y=support, 
     mode="lines", 
@@ -605,7 +553,7 @@ fig.add_trace(go.Scatter(
     yaxis="y",
     visible="legendonly"  # 默认隐藏
 ))
-fig.add_trace(go.Scatter(
+fig.add_trace(go.Scattergl(
     x=dfi.index, 
     y=resistance, 
     mode="lines", 
@@ -621,7 +569,7 @@ sell_signals = signals[signals.isin(["Sell"]).any(axis=1)]
 
 if not buy_signals.empty:
     buy_points = dfi.loc[buy_signals.index]
-    fig.add_trace(go.Scatter(
+    fig.add_trace(go.Scattergl(
         x=buy_points.index, 
         y=buy_points["Low"] * 0.99, 
         mode="markers", 
@@ -632,7 +580,7 @@ if not buy_signals.empty:
 
 if not sell_signals.empty:
     sell_points = dfi.loc[sell_signals.index]
-    fig.add_trace(go.Scatter(
+    fig.add_trace(go.Scattergl(
         x=sell_points.index, 
         y=sell_points["High"] * 1.01, 
         mode="markers", 
@@ -655,7 +603,7 @@ if "Volume" in dfi.columns and not dfi["Volume"].isna().all():
 
 # 添加MACD副图 - 默认显示
 if use_macd and all(c in dfi.columns for c in ["MACD","MACD_signal","MACD_hist"]):
-    fig.add_trace(go.Scatter(
+    fig.add_trace(go.Scattergl(
         x=dfi.index, 
         y=dfi["MACD"], 
         name="MACD", 
@@ -663,7 +611,7 @@ if use_macd and all(c in dfi.columns for c in ["MACD","MACD_signal","MACD_hist"]
         mode="lines",
         line=dict(color="#3366cc")
     ))
-    fig.add_trace(go.Scatter(
+    fig.add_trace(go.Scattergl(
         x=dfi.index, 
         y=dfi["MACD_signal"], 
         name="Signal", 
@@ -682,7 +630,7 @@ if use_macd and all(c in dfi.columns for c in ["MACD","MACD_signal","MACD_hist"]
 
 # 添加RSI副图 - 默认隐藏
 if use_rsi and "RSI" in dfi.columns:
-    fig.add_trace(go.Scatter(
+    fig.add_trace(go.Scattergl(
         x=dfi.index, 
         y=dfi["RSI"], 
         name="RSI", 
@@ -696,7 +644,7 @@ if use_rsi and "RSI" in dfi.columns:
 
 # 添加KDJ副图 - 默认隐藏
 if use_kdj and all(c in dfi.columns for c in ["KDJ_K","KDJ_D","KDJ_J"]):
-    fig.add_trace(go.Scatter(
+    fig.add_trace(go.Scattergl(
         x=dfi.index, 
         y=dfi["KDJ_K"], 
         name="KDJ_K", 
@@ -705,7 +653,7 @@ if use_kdj and all(c in dfi.columns for c in ["KDJ_K","KDJ_D","KDJ_J"]):
         line=dict(color="#ff7f0e"),
         visible="legendonly"  # 默认隐藏
     ))
-    fig.add_trace(go.Scatter(
+    fig.add_trace(go.Scattergl(
         x=dfi.index, 
         y=dfi["KDJ_D"], 
         name="KDJ_D", 
@@ -714,7 +662,7 @@ if use_kdj and all(c in dfi.columns for c in ["KDJ_K","KDJ_D","KDJ_J"]):
         line=dict(color="#1f77b4"),
         visible="legendonly"  # 默认隐藏
     ))
-    fig.add_trace(go.Scatter(
+    fig.add_trace(go.Scattergl(
         x=dfi.index, 
         y=dfi["KDJ_J"], 
         name="KDJ_J", 
@@ -873,7 +821,7 @@ c2.metric("最大回撤", f"{mdd*100:.2f}%")
 total_ret = equity.iloc[-1]/equity.iloc[0]-1 if len(equity)>1 else 0.0
 c3.metric("累计收益", f"{total_ret*100:.2f}%")
 fig_eq = go.Figure()
-fig_eq.add_trace(go.Scatter(x=equity.index, y=equity.values, mode="lines", name="策略净值"))
+fig_eq.add_trace(go.Scattergl(x=equity.index, y=equity.values, mode="lines", name="策略净值"))
 fig_eq.update_layout(height=280, xaxis_rangeslider_visible=False)
 st.plotly_chart(fig_eq, use_container_width=True, config={'scrollZoom': True, 'responsive': True, 'displaylogo': False})
 if len(pnl)>0:
@@ -1145,7 +1093,7 @@ else:
     c4.metric("Sharpe", f"{res['sharpe']:.2f}")
     c5.metric("交易次数", str(res['trades_count']))
     fig_c = go.Figure()
-    fig_c.add_trace(go.Scatter(x=res["equity"].index, y=res["equity"].values, mode="lines", name="组合策略净值"))
+    fig_c.add_trace(go.Scattergl(x=res["equity"].index, y=res["equity"].values, mode="lines", name="组合策略净值"))
     fig_c.update_layout(height=320, xaxis_rangeslider_visible=False)
     st.plotly_chart(fig_c, use_container_width=True, config={'scrollZoom': True, 'responsive': True, 'displaylogo': False})
     if len(res["trades"])>0:
