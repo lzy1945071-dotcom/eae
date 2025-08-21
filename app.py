@@ -13,15 +13,16 @@ import time
 
 st.set_page_config(page_title="Legend Quant Terminal Elite v3 FIX10", layout="wide")
 
-# ===== 页面切换（Sidebar 置顶滑动条，1=K线图&副图；2=策略/回测等） =====
-if 'page' not in st.session_state:
-    st.session_state['page'] = 1
-st.sidebar.markdown('### 页面切换')
-st.session_state['page'] = st.sidebar.slider(
-    '切换到页面', 1, 2, int(st.session_state['page']),
-    help='1：K线图 & 副图；2：策略回测等其他模块'
+# ===== 页面切换（Sidebar 顶部单选按钮） =====
+page = st.sidebar.radio(
+    '页面切换',
+    ('📊 K线 & 副图', '📈 策略 & 回测'),
+    index=0
 )
-page = int(st.session_state['page'])
+
+if 'page' not in st.session_state:
+st.sidebar.markdown('### 页面切换')
+)
 
 st.title("💎 Legend Quant Terminal Elite v3 FIX10")
 
@@ -162,8 +163,6 @@ st.sidebar.markdown('''
 # ========================= Sidebar: ⑤ 风控参数 =========================
 st.sidebar.header("⑤ 风控参数")
 account_value = st.sidebar.number_input("账户总资金", min_value=1.0, value=1000.0, step=10.0)
-risk_pct = st.sidebar.slider("单笔风险（%）", 0.1, 2.0, 0.5, 0.1)
-leverage = st.sidebar.slider("杠杆倍数", 1, 10, 1, 1)
 daily_loss_limit = st.sidebar.number_input("每日亏损阈值（%）", min_value=0.5, value=2.0, step=0.5)
 weekly_loss_limit = st.sidebar.number_input("每周亏损阈值（%）", min_value=1.0, value=5.0, step=0.5)
 
@@ -450,7 +449,7 @@ def calculate_support_resistance(df, window=20):
 
 support, resistance = calculate_support_resistance(dfi)
 
-if page == 1:
+if page == '📊 K线 & 副图':
     # ========================= TradingView 风格图表 =========================
     st.subheader(f"🕯️ K线（{symbol} / {source} / {interval}）")
     fig = go.Figure()
@@ -711,7 +710,7 @@ if page == 1:
         "displaylogo": False
     })
     
-if page == 2:
+if page == '📈 策略 & 回测':
     # ========================= 实时策略建议（增强版） =========================
     st.markdown("---")
     st.subheader("🧭 实时策略建议（非投资建议）")
