@@ -43,6 +43,17 @@ if page == 'K线图':
         dfi = load_cg_ohlc(coin_id, interval_sel)
         st.session_state['dfi'] = dfi
         st.session_state['last'] = _safe_last(dfi)
+
+    dfi = st.session_state.get('dfi')
+    last = st.session_state.get('last')
+    if dfi is None or last is None:
+        st.warning('数据为空，请点击刷新按钮加载数据')
+        st.stop()
+
+    if st.button('刷新数据'):
+        dfi = load_cg_ohlc(coin_id, interval_sel)
+        st.session_state['dfi'] = dfi
+        st.session_state['last'] = _safe_last(dfi)
     dfi = st.session_state.get('dfi')
     last = st.session_state.get('last')
     if dfi is None or last is None:
@@ -739,6 +750,17 @@ if page == 'K线图':
     })
 
 elif page == '实时策略':
+    if st.button('刷新数据'):
+        dfi = load_cg_ohlc(coin_id, interval_sel)
+        st.session_state['dfi'] = dfi
+        st.session_state['last'] = _safe_last(dfi)
+
+    dfi = st.session_state.get('dfi')
+    last = st.session_state.get('last')
+    if dfi is None or last is None:
+        st.warning('数据为空，请点击刷新按钮加载数据')
+        st.stop()
+
     if st.button('刷新数据'):
         dfi = load_cg_ohlc(coin_id, interval_sel)
         st.session_state['dfi'] = dfi
