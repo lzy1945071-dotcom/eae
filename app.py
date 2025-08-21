@@ -13,13 +13,13 @@ import time
 
 st.set_page_config(page_title="Legend Quant Terminal Elite v3 FIX10", layout="wide")
 
-# ===== 页面切换（Sidebar 顶部单选按钮） =====
+# ===== 页面切换（Sidebar 置顶滑动条，1=K线图&副图；2=策略/回测等） =====
+st.sidebar.markdown('### 页面切换')
 page = st.sidebar.radio(
-    '页面切换',
-    ('📊 K线 & 副图', '📈 策略 & 回测'),
-    index=0
+    "选择页面",
+    ["📊 K线图", "📈 策略"],
+    help="选择要查看的模块"
 )
-
 
 st.title("💎 Legend Quant Terminal Elite v3 FIX10")
 
@@ -160,6 +160,8 @@ st.sidebar.markdown('''
 # ========================= Sidebar: ⑤ 风控参数 =========================
 st.sidebar.header("⑤ 风控参数")
 account_value = st.sidebar.number_input("账户总资金", min_value=1.0, value=1000.0, step=10.0)
+risk_pct = st.sidebar.slider("单笔风险（%）", 0.1, 2.0, 0.5, 0.1)
+leverage = st.sidebar.slider("杠杆倍数", 1, 10, 1, 1)
 daily_loss_limit = st.sidebar.number_input("每日亏损阈值（%）", min_value=0.5, value=2.0, step=0.5)
 weekly_loss_limit = st.sidebar.number_input("每周亏损阈值（%）", min_value=1.0, value=5.0, step=0.5)
 
@@ -375,51 +377,56 @@ dfi = add_indicators(df).dropna(how="all")
 
 # ========================= 信号检测函数 =========================
 def detect_signals(df):
-    """检测各种交易信号（修复版）"""
+    """检测各种交易信号"""
     signals = pd.DataFrame(index=df.index)
-
-    # MA 20/50 交叉
+    
+    # MA交叉信号
     if "MA20" in df.columns and "MA50" in df.columns:
         signals["MA_Cross"] = np.where(
-            (df["MA20"] > df["MA50"]) & (df["MA20"].shift(1) <= df["MA50"].shift(1)),
-            "Buy",
+            (df["MA20"] > df["MA50"]) & (df["MA20"].shift(1) <= df["MA50"].shift(1)), 
+            "Buy", 
             np.where(
-                (df["MA20"] < df["MA50"]) & (df["MA20"].shift(1) >= df["MA50"].shift(1)),
-                "Sell",
+                (df["MA20"] < df["MA50"]) & (df["MA20"].shift(1) >= df["MA50"].shift(1)), 
+                "Sell", 
                 None
             )
         )
-
-    # MACD 线交叉
+    
+    # MACD信号
     if all(c in df.columns for c in ["MACD","MACD_signal"]):
         signals["MACD_Cross"] = np.where(
-            (df["MACD"] > df["MACD_signal"]) & (df["MACD"].shift(1) <= df["MACD_signal"].shift(1)),
-            "Buy",
+            (df["MACD"] > df["MACD_signal"]) & (df["MACD"].shift(1) <= df["MACD_signal"].shift(1)), 
+            "Buy", 
             np.where(
-                (df["MACD"] < df["MACD_signal"]) & (df["MACD"].shift(1) >= df["MACD_signal"].shift(1)),
-                "Sell",
+                (df["MACD"] < df["MACD_signal"]) & (df["MACD"].shift(1) >= df["MACD_signal"].shift(1)), 
+                "Sell", 
                 None
             )
         )
-
-    # RSI 超买/超卖
+    
+    # RSI超买超卖信号
     if "RSI" in df.columns:
         signals["RSI_Overbought"] = np.where(df["RSI"] > 70, "Sell", None)
         signals["RSI_Oversold"] = np.where(df["RSI"] < 30, "Buy", None)
-
-    # KDJ 金叉/死叉
-    if all(c in df.columns for c in ["KDJ_K", "KDJ_D"]):
+    
+    # KDJ信号
+    if all(c in df.columns for c in ["KDJ_K","KDJ_D"]):
         signals["KDJ_Cross"] = np.where(
-            (df["KDJ_K"] > df["KDJ_D"]) & (df["KDJ_K"].shift(1) <= df["KDJ_D"].shift(1)),
-            "Buy",
+            (df["KDJ_K"] > df["KDJ_D"]) & (df["KDJ_K"].shift(1) <= df["KDJ_D"].shift(1)), 
+            "Buy", 
             np.where(
-                (df["KDJ_K"] < df["KDJ_D"]) & (df["KDJ_K"].shift(1) >= df["KDJ_D"].shift(1)),
-                "Sell",
+                (df["KDJ_K"] < df["KDJ_D"]) & (df["KDJ_K"].shift(1) >= df["KDJ_D"].shift(1)), 
+                "Sell", 
                 None
             )
         )
-
+        signals["KDJ_Overbought"] = np.where(df["KDJ_K"] > 80, "Sell", None)
+        signals["KDJ_Oversold"] = np.where(df["KDJ_K"] < 20, "Buy", None)
+    
     return signals
+
+# 检测信号
+signals = detect_signals(dfi)
 
 # ========================= 支撑阻力计算 =========================
 def calculate_support_resistance(df, window=20):
@@ -441,46 +448,10 @@ def calculate_support_resistance(df, window=20):
 
 support, resistance = calculate_support_resistance(dfi)
 
-if page == '📊 K线 & 副图':
+if page == "📊 K线图":
     # ========================= TradingView 风格图表 =========================
     st.subheader(f"🕯️ K线（{symbol} / {source} / {interval}）")
     fig = go.Figure()
-
-    # 检测买卖信号
-    signals = detect_signals(df) if 'detect_signals' in globals() else None
-    if signals is not None and not signals.empty:
-        buy_signals = signals[signals.isin(['Buy']).any(axis=1)]
-        sell_signals = signals[signals.isin(['Sell']).any(axis=1)]
-
-    # 在 K 线上绘制买入点（默认隐藏，通过图例点击开启）
-    if not buy_signals.empty:
-        fig.add_trace(go.Scatter(
-            x=buy_signals.index,
-            y=df.loc[buy_signals.index, 'Low'],
-            mode='markers',
-            marker_symbol='triangle-up',
-            marker_size=12,
-            marker_color='green',
-            name='Buy',
-            visible='legendonly'
-        ))
-
-    # 在 K 线上绘制卖出点（默认隐藏，通过图例点击开启）
-    if not sell_signals.empty:
-        fig.add_trace(go.Scatter(
-            x=sell_signals.index,
-            y=df.loc[sell_signals.index, 'High'],
-            mode='markers',
-            marker_symbol='triangle-down',
-            marker_size=12,
-            marker_color='red',
-            name='Sell',
-            visible='legendonly'
-        ))
-    else:
-        buy_signals = pd.DataFrame()
-        sell_signals = pd.DataFrame()
-
     # --- Build hovertext for candlestick (keep original precision) ---
     try:
         # choose volume column
@@ -528,10 +499,10 @@ if page == '📊 K线 & 副图':
             close=dfi["Close"],
             name="K线",
             
-    
-    
-        )
+            )
     )
+    
+    
     # 添加均线 - 默认隐藏
     if use_ma:
         ma_colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"]
@@ -711,34 +682,34 @@ if page == '📊 K线 & 副图':
     
     # 更新图表布局
     fig.update_layout(
-    hovermode='x unified',
-    xaxis=dict(showspikes=True, spikemode='across', spikesnap='cursor', showline=True),
-    yaxis=dict(showspikes=True, spikemode='across', spikesnap='cursor', showline=True),
-    xaxis_rangeslider_visible=False,
-    height=1000,
-    dragmode="pan",
-    yaxis2=dict(domain=[0.45, 0.57], title="成交量", showgrid=False),
-    yaxis3=dict(domain=[0.25, 0.44], title="MACD", showgrid=False),
-    yaxis4=dict(domain=[0.15, 0.24], title="RSI", showgrid=False, range=[0,100]),
-    yaxis5=dict(domain=[0.0, 0.14], title="KDJ", showgrid=False, range=[0,100]),
-    modebar_add=["drawline","drawopenpath","drawclosedpath","drawcircle","drawrect","eraseshape"],
-    legend=dict(
-        orientation="h",
-        yanchor="bottom",
-        y=1.02,
-        xanchor="right",
-        x=1
-    ),
-    uirevision='constant'
-)
-
-st.plotly_chart(fig, use_container_width=True, config={
-    "scrollZoom": True,
-    "displayModeBar": True,
-    "displaylogo": False
-})
-
-if page == '📈 策略 & 回测':
+        hovermode='x unified',
+        xaxis=dict(showspikes=True, spikemode='across', spikesnap='cursor', showline=True),
+        yaxis=dict(showspikes=True, spikemode='across', spikesnap='cursor', showline=True),
+        xaxis_rangeslider_visible=False,
+        height=1000,
+        dragmode="pan",
+        yaxis2=dict(domain=[0.45, 0.57], title="成交量", showgrid=False),
+        yaxis3=dict(domain=[0.25, 0.44], title="MACD", showgrid=False),
+        yaxis4=dict(domain=[0.15, 0.24], title="RSI", showgrid=False, range=[0,100]),
+        yaxis5=dict(domain=[0.0, 0.14], title="KDJ", showgrid=False, range=[0,100]),
+        modebar_add=["drawline","drawopenpath","drawclosedpath","drawcircle","drawrect","eraseshape"],
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        )
+    ,
+        uirevision='constant'
+    )
+    st.plotly_chart(fig, use_container_width=True, config={
+        "scrollZoom": True,
+        "displayModeBar": True,
+        "displaylogo": False
+    })
+    
+if page == 2:
     # ========================= 实时策略建议（增强版） =========================
     st.markdown("---")
     st.subheader("🧭 实时策略建议（非投资建议）")
@@ -818,8 +789,8 @@ if page == '📈 策略 & 回测':
         f"压力区：**{resist_zone[0]:,.4f} ~ {resist_zone[1]:,.4f}**｜"
         f"建议止损：**{sl:,.4f}** ｜ 建议止盈：**{tp:,.4f}**\n\n"
         f"提示：{hint}"
-    
     )
+    
     # ========================= 胜率统计（简版） =========================
     def simple_backtest(df):
         df = df.dropna().copy()
