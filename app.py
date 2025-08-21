@@ -15,8 +15,8 @@ st.set_page_config(page_title="Legend Quant Terminal Elite v3 FIX10", layout="wi
 
 
 # ========================= 页面缩放与上下翻页按钮 =========================
-# 缩放比例滑动条
-zoom = st.slider("页面缩放比例", 50, 120, 80, step=5)  # 默认 80%
+# 缩放比例滑动条（放在侧边栏）
+zoom = st.sidebar.slider("页面缩放比例 (%)", 50, 120, 80, step=5)  # 默认 80%
 
 # 翻页步长设置（侧边栏）
 scroll_step = st.sidebar.number_input("翻页步长 (像素)", min_value=100, max_value=2000, value=600, step=100)
@@ -25,21 +25,19 @@ scroll_step = st.sidebar.number_input("翻页步长 (像素)", min_value=100, ma
 st.markdown(
     f"""
     <style>
-    .main {{
-        zoom: {zoom/100};  /* 根据滑动条动态调整缩放比例 */
+    .block-container {{
+        transform: scale({zoom/100});
+        transform-origin: top center;
     }}
     .scroll-btn {{
         position: fixed;
         right: 20px;
-        padding: 10px 14px;
-        border-radius: 50%;
-        background-color: #4CAF50;
-        color: white;
+        background: none;  /* 去掉绿色背景 */
         border: none;
         cursor: pointer;
-        font-size: 18px;
+        font-size: 28px;   /* 字体更大 */
         z-index: 1000;
-        opacity: 0.7;
+        opacity: 0.6;
     }}
     .scroll-btn:hover {{
         opacity: 1;
