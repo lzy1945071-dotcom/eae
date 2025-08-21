@@ -1,5 +1,8 @@
-# app.py — Legend Quant Terminal Elite v3 FIX10 (TV风格 + 多指标 + 实时策略增强)
 import streamlit as st
+st.sidebar.title('功能导航')
+page = st.sidebar.radio('切换页面', ['K线图', '实时策略'])
+
+# app.py — Legend Quant Terminal Elite v3 FIX10 (TV风格 + 多指标 + 实时策略增强)
 import pandas as pd
 import numpy as np
 import requests
@@ -13,6 +16,8 @@ import time
 
 st.set_page_config(page_title="Legend Quant Terminal Elite v3 FIX10", layout="wide")
 st.title("💎 Legend Quant Terminal Elite v3 FIX10")
+
+if page == 'K线图':
 
 # 初始化会话状态
 if 'last_refresh_time' not in st.session_state:
@@ -1098,3 +1103,7 @@ else:
         st.plotly_chart(px.histogram(res["trades"], nbins=20, title="单笔收益分布（组合策略）", config={'scrollZoom': True, 'responsive': True, 'displaylogo': False}), use_container_width=True)
     else:
         st.info("组合策略暂无闭合交易样本。")
+
+elif page == '实时策略':
+    st.header('⚡ 实时策略页面')
+    st.write('这里展示策略相关功能')
