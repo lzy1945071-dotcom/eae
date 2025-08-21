@@ -33,21 +33,17 @@ if 'dfi' not in globals():
 if 'last' not in globals():
     last = None
 
+# 添加session state初始化
+if 'dfi' not in st.session_state:
+    st.session_state.dfi = None
+if 'last' not in st.session_state:
+    st.session_state.last = None
+
+
 
     # app.py — Legend Quant Terminal Elite v3 FIX10 (TV风格 + 多指标 + 实时策略增强)
 
 if page == 'K线图':
-    if st.button('刷新数据'):
-        dfi = load_cg_ohlc(coin_id, interval_sel)
-        st.session_state['dfi'] = dfi
-        st.session_state['last'] = _safe_last(dfi)
-
-    dfi = st.session_state.get('dfi')
-    last = st.session_state.get('last')
-    if dfi is None or last is None:
-        st.warning('数据为空，请点击刷新按钮加载数据')
-        st.stop()
-
     st.title("💎 Legend Quant Terminal Elite v3 FIX10")
 
     # 初始化会话状态
@@ -401,6 +397,11 @@ if page == 'K线图':
         return out
 
     dfi = add_indicators(df).dropna(how="all")
+
+# 保存数据到session state
+st.session_state.dfi = dfi
+st.session_state.last = _safe_last(dfi)
+
     dfi["hovertext"] = [
         f"日期: {d:%Y-%m-%d}<br>收盘: {c:.2f}<br>成交量: {v}"
         for d, c, v in zip(dfi.index, dfi["Close"], dfi["Volume"])
@@ -739,26 +740,18 @@ if page == 'K线图':
     })
 
 elif page == '实时策略':
-    if st.button('刷新数据'):
-        dfi = load_cg_ohlc(coin_id, interval_sel)
-        st.session_state['dfi'] = dfi
-        st.session_state['last'] = _safe_last(dfi)
-
-    dfi = st.session_state.get('dfi')
-    last = st.session_state.get('last')
-    if dfi is None or last is None:
-        st.warning('数据为空，请点击刷新按钮加载数据')
-        st.stop()
-
     # ========================= 实时策略建议（增强版） =========================
-    st.markdown("---")
-    st.subheader("🧭 实时策略建议（非投资建议）")
-
-    last = _safe_last(dfi)
-    if last is None:
-        st.warning('数据为空，请先在「K线图」页面加载或刷新数据')
+    st.markdown('---')
+    st.subheader('🧭 实时策略建议（非投资建议）')
+    
+    # 从session state获取数据
+    if st.session_state.dfi is None or st.session_state.last is None:
+        st.warning('请先在「K线图」页面加载或刷新数据')
         st.stop()
-    price = float(last["Close"])
+    
+    dfi = st.session_state.dfi
+    last = st.session_state.last
+    price = float(last['Close'])
 
     # 1) 趋势/动能评分
     score = 0; reasons = []
