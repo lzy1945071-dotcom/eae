@@ -32,10 +32,10 @@ st.markdown(
     .scroll-btn {{
         position: fixed;
         right: 20px;
-        background: none;  /* 去掉绿色背景 */
+        background: none;
         border: none;
         cursor: pointer;
-        font-size: 28px;   /* 字体更大 */
+        font-size: 28px;
         z-index: 1000;
         opacity: 0.6;
     }}
@@ -58,11 +58,11 @@ st.markdown(
     const downBtn = document.getElementById("scroll-down");
 
     upBtn.addEventListener("click", () => {{
-        window.scrollBy({{ top: -{scroll_step}, left: 0, behavior: 'smooth' }});
+        window.scrollBy(0, -{scroll_step});
     }});
 
     downBtn.addEventListener("click", () => {{
-        window.scrollBy({{ top: {scroll_step}, left: 0, behavior: 'smooth' }});
+        window.scrollBy(0, {scroll_step});
     }});
     </script>
     """,
