@@ -916,19 +916,9 @@ if page_clean == "策略":
     
     # ---------- UI：四宫格指标 ----------
     c1, c2, c3, c4 = st.columns(4)
-    c1.markdown(f"""
-<div style='text-align:center;'>
-<div style='font-size:14px; font-weight:600; color: green;'>做多评分</div>
-<div style='font-size:28px; font-weight:700;'>{float(long_score):.0f}/100</div>
-</div>
-""", unsafe_allow_html=True)
-c2.markdown(f"""
-<div style='text-align:center;'>
-<div style='font-size:14px; font-weight:600; color: red;'>做空评分</div>
-<div style='font-size:28px; font-weight:700;'>{float(short_score):.0f}/100</div>
-</div>
-""", unsafe_allow_html=True)
-c3.metric("诱多概率", f"{bull_trap_prob:.1f}%")
+    c1.metric("做多评分", f"{long_score:.0f}/100")
+    c2.metric("做空评分", f"{short_score:.0f}/100")
+    c3.metric("诱多概率", f"{bull_trap_prob:.1f}%")
     c4.metric("诱空概率", f"{bear_trap_prob:.1f}%")
     
     # 斐波那契盈亏比
