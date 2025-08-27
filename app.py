@@ -386,6 +386,8 @@ dfi = add_indicators(df).dropna(how="all")
 def detect_signals(df):
     """检测各种交易信号"""
     signals = pd.DataFrame(index=df.index)
+long_signals = signals  # ✅ 做多信号列表
+short_signals = ["✅" if s=="" else "" for s in signals]  # ✅ 简单示例：做空与做多相反，可根据实际逻辑调整
     
     # MA交叉信号
     if "MA20" in df.columns and "MA50" in df.columns:
@@ -914,8 +916,19 @@ if page_clean == "策略":
     
     # ---------- UI：四宫格指标 ----------
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("做多评分", f"{long_score:.0f}/100")
-    c2.metric("做空评分", f"{short_score:.0f}/100")
+    c1.markdown(f"""
+<div style='padding:12px; border-radius:8px; text-align:center; border:1px solid rgba(0,0,0,0.08);'>
+<div style='font-size:14px; opacity:0.8;'>做多评分</div>
+<div style='font-size:28px; font-weight:700; color:green;'>{int(round(long_score))}/100</div>
+</div>
+""", unsafe_allow_html=True)
+
+c2.markdown(f"""
+<div style='padding:12px; border-radius:8px; text-align:center; border:1px solid rgba(0,0,0,0.08);'>
+<div style='font-size:14px; opacity:0.8;'>做空评分</div>
+<div style='font-size:28px; font-weight:700; color:red;'>{int(round(short_score))}/100</div>
+</div>
+""", unsafe_allow_html=True)
     c3.metric("诱多概率", f"{bull_trap_prob:.1f}%")
     c4.metric("诱空概率", f"{bear_trap_prob:.1f}%")
     
@@ -925,52 +938,7 @@ if page_clean == "策略":
     c6.metric("Fibo 盈亏比（空）", "-" if np.isnan(short_rr) else f"{short_rr:.2f}")
 
     
-    # ================= 评分数值文字显示 =================
-    colg1, colg2 = st.columns(2)
-    with colg1:
-        st.markdown(f"<h2 style='color:green; text-align:center;'>做多评分: <b>{float(long_score):.1f}</b></h2>", unsafe_allow_html=True)
-    with colg2:
-        st.markdown(f"<h2 style='color:red; text-align:center;'>做空评分: <b>{float(short_score):.1f}</b></h2>", unsafe_allow_html=True)
-
-    
-    # ================= 顶部关键信息显示 =================
-    try:
-        checked_indicators = "<br>".join(cl_df[cl_df["状态"]=="✅"]["指标"].tolist())
-    except Exception:
-        checked_indicators = ""
-
-    try:
-        current_price_val = float(current_price)
-    except Exception:
-        current_price_val = None
-
-    try:
-        atr_val = float(atr_value)
-    except Exception:
-        atr_val = None
-
-    # 推导策略建议
-    if long_score > short_score:
-        strategy_advice = "做多"
-        advice_color = "green"
-    elif short_score > long_score:
-        strategy_advice = "做空"
-        advice_color = "red"
-    else:
-        strategy_advice = "观望"
-        advice_color = "gray"
-
-    st.markdown(f"""
-    <div style="font-size:20px; font-weight:bold; line-height:1.6; border:2px solid #ddd; padding:10px; border-radius:8px; background-color:#f0f8ff;">
-    📌 当前价: {current_price_val if current_price_val else '-'}<br>
-    📊 建议: <span style='color:{advice_color};'>{strategy_advice}</span><br>
-    ✅ 做多评分: {long_score:.1f} &nbsp;&nbsp; ❌ 做空评分: {short_score:.1f}<br>
-    📈 ATR: {atr_val if atr_val else '-'}<br>
-    📑 依据: {checked_indicators if checked_indicators else "无"}
-    </div>
-    """, unsafe_allow_html=True)
-
-# ================= 雷达图显示（评分构成） =================
+    # ================= 雷达图显示（评分构成） =================
     # 使用已计算的子评分（0~1）并映射到0~100
     def _nz(x, default=0.5):
         try:
