@@ -1,6 +1,5 @@
 # app.py — Legend Quant Terminal Elite v3 FIX10 (TV风格 + 多指标 + 实时策略增强)
 import streamlit as st
-from streamlit_plotly_events import plotly_events
 import pandas as pd
 import numpy as np
 import requests
@@ -490,32 +489,32 @@ if page_clean == "K线图":
     if "KDJ_J" in dfi.columns:
         fig.add_trace(go.Scatter(x=dfi.index, y=dfi["KDJ_J"], mode="lines", name="J"), row=2, col=1)
 
-    # ===== 斐波那契（默认关闭，鼠标交互开启） =====
-    fib_traces = []
+    # ===== 手动输入斐波那契高低点 =====
+    st.sidebar.subheader("⚙️ 斐波那契设置")
+    high_price = st.sidebar.number_input("高点价格", min_value=0.0, value=float(dfi["High"].max()))
+    low_price = st.sidebar.number_input("低点价格", min_value=0.0, value=float(dfi["Low"].min()))
 
-    # 捕捉鼠标点击
-    selected_points = plotly_events(fig, click_event=True, select_event=False, override_height=700, override_width="100%")
+    if "show_fib" not in st.session_state:
+        st.session_state.show_fib = False
 
-    if selected_points and len(selected_points) >= 2:
-        y_vals = [p["y"] for p in selected_points[:2]]
-        high_price, low_price = max(y_vals), min(y_vals)
+    toggle = st.sidebar.checkbox("绘制斐波那契", value=st.session_state.show_fib)
 
+    if toggle:
+        st.session_state.show_fib = True
         levels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1]
         for lvl in levels:
             price = high_price - (high_price - low_price) * lvl
-            fib_traces.append(
+            fig.add_trace(
                 go.Scatter(
                     x=[dfi.index[0], dfi.index[-1]],
                     y=[price, price],
                     mode="lines",
                     name=f"Fibonacci {lvl*100:.1f}%",
-                    line=dict(color="blue", dash="dot"),
-                    visible="legendonly"  # 默认隐藏，在图例点击开启
-                )
+                    line=dict(color="blue", dash="dot")
+                ),
+                row=1, col=1
             )
-
-    # 添加所有斐波那契线（默认关闭）
-    for trace in fib_traces:
-        fig.add_trace(trace, row=1, col=1)
+    else:
+        st.session_state.show_fib = False  # 一旦取消，就彻底清除
 
     st.plotly_chart(fig, use_container_width=True)
