@@ -1,5 +1,6 @@
 # app.py — Legend Quant Terminal Elite v3 FIX10 (TV风格 + 多指标 + 实时策略增强)
 import streamlit as st
+from streamlit_plotly_events import plotly_events
 import pandas as pd
 import numpy as np
 import requests
