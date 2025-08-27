@@ -916,19 +916,9 @@ if page_clean == "策略":
     
     # ---------- UI：四宫格指标 ----------
     c1, c2, c3, c4 = st.columns(4)
-    c1.markdown(f"""
-<div style='padding:12px; border-radius:8px; text-align:center; border:1px solid rgba(0,0,0,0.08);'>
-<div style='font-size:14px; opacity:0.8;'>做多评分</div>
-<div style='font-size:28px; font-weight:700; color:green;'>{int(round(long_score))}/100</div>
-</div>
-""", unsafe_allow_html=True)
+    c1.markdown(f<div style='padding:12px; border-radius:8px; text-align:center; border:1px solid rgba(0,0,0,0.08);'><div style='font-size:14px; opacity:0.8;'>做多评分</div><div style='font-size:28px; font-weight:700; color:green;'>{int(round(long_score))}/100</div></div>, unsafe_allow_html=True)
 
-c2.markdown(f"""
-<div style='padding:12px; border-radius:8px; text-align:center; border:1px solid rgba(0,0,0,0.08);'>
-<div style='font-size:14px; opacity:0.8;'>做空评分</div>
-<div style='font-size:28px; font-weight:700; color:red;'>{int(round(short_score))}/100</div>
-</div>
-""", unsafe_allow_html=True)
+c2.markdown(f<div style='padding:12px; border-radius:8px; text-align:center; border:1px solid rgba(0,0,0,0.08);'><div style='font-size:14px; opacity:0.8;'>做空评分</div><div style='font-size:28px; font-weight:700; color:red;'>{int(round(short_score))}/100</div></div>, unsafe_allow_html=True)
     c3.metric("诱多概率", f"{bull_trap_prob:.1f}%")
     c4.metric("诱空概率", f"{bear_trap_prob:.1f}%")
     
