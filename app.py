@@ -916,10 +916,19 @@ if page_clean == "策略":
     
     # ---------- UI：四宫格指标 ----------
     c1, c2, c3, c4 = st.columns(4)
-    c1.markdown(f<div style='padding:12px; border-radius:8px; text-align:center; border:1px solid rgba(0,0,0,0.08);'><div style='font-size:14px; opacity:0.8;'>做多评分</div><div style='font-size:28px; font-weight:700; color:green;'>{int(round(long_score))}/100</div></div>, unsafe_allow_html=True)
-
-c2.markdown(f<div style='padding:12px; border-radius:8px; text-align:center; border:1px solid rgba(0,0,0,0.08);'><div style='font-size:14px; opacity:0.8;'>做空评分</div><div style='font-size:28px; font-weight:700; color:red;'>{int(round(short_score))}/100</div></div>, unsafe_allow_html=True)
-    c3.metric("诱多概率", f"{bull_trap_prob:.1f}%")
+    c1.markdown(f"""
+<div style='text-align:center;'>
+<div style='font-size:14px; font-weight:600; color: green;'>做多评分</div>
+<div style='font-size:28px; font-weight:700;'>{float(long_score):.0f}/100</div>
+</div>
+""", unsafe_allow_html=True)
+c2.markdown(f"""
+<div style='text-align:center;'>
+<div style='font-size:14px; font-weight:600; color: red;'>做空评分</div>
+<div style='font-size:28px; font-weight:700;'>{float(short_score):.0f}/100</div>
+</div>
+""", unsafe_allow_html=True)
+c3.metric("诱多概率", f"{bull_trap_prob:.1f}%")
     c4.metric("诱空概率", f"{bear_trap_prob:.1f}%")
     
     # 斐波那契盈亏比
@@ -928,7 +937,16 @@ if page_clean == "策略":
     c6.metric("Fibo 盈亏比（空）", "-" if np.isnan(short_rr) else f"{short_rr:.2f}")
 
     
-    # ================= 雷达图显示（评分构成） =================
+    # ================= 评分数值文字显示 =================
+    colg1, colg2 = st.columns(2)
+    with colg1:
+        st.markdown(f"<h2 style='color:green; text-align:center;'>做多评分: <b>{float(long_score):.1f}</b></h2>", unsafe_allow_html=True)
+    with colg2:
+        st.markdown(f"<h2 style='color:red; text-align:center;'>做空评分: <b>{float(short_score):.1f}</b></h2>", unsafe_allow_html=True)
+
+    
+
+# ================= 雷达图显示（评分构成） =================
     # 使用已计算的子评分（0~1）并映射到0~100
     def _nz(x, default=0.5):
         try:
