@@ -30,6 +30,23 @@ page_clean = page.replace("📈 ", "").replace("📊 ", "")
 
 st.title("💎 Legend Quant Terminal Elite v3 FIX10")
 
+# ===== Sidebar 参数 =====
+st.sidebar.markdown("### 参数设置（默认适合加密货币）")
+
+rsi_period = st.sidebar.number_input("RSI 周期", 5, 50, 14)
+rsi_long = st.sidebar.slider("RSI 做多阈值", 10, 50, 30)
+rsi_short = st.sidebar.slider("RSI 做空阈值", 50, 90, 70)
+
+macd_fast = st.sidebar.number_input("MACD 快速均线", 5, 30, 12)
+macd_slow = st.sidebar.number_input("MACD 慢速均线", 10, 50, 26)
+macd_signal = st.sidebar.number_input("MACD 信号线", 5, 20, 9)
+
+ma_window = st.sidebar.number_input("MA 窗口", 5, 100, 20)
+adx_period = st.sidebar.number_input("ADX 周期", 5, 50, 14)
+atr_period = st.sidebar.number_input("ATR 周期", 5, 50, 14)
+cci_period = st.sidebar.number_input("CCI 周期", 5, 50, 20)
+
+
 # 初始化会话状态
 if 'last_refresh_time' not in st.session_state:
     st.session_state.last_refresh_time = None
