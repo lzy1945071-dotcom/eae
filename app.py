@@ -960,15 +960,7 @@ if page_clean == "策略":
         strategy_advice = "观望"
         advice_color = "gray"
 
-    st.markdown(f"""
-    <div style="font-size:20px; font-weight:bold; line-height:1.6; border:2px solid #ddd; padding:10px; border-radius:8px; background-color:#f0f8ff;">
-    📌 当前价: {current_price_val if current_price_val else '-'}<br>
-    📊 建议: <span style='color:{advice_color};'>{strategy_advice}</span><br>
-    ✅ 做多评分: {long_score:.1f} &nbsp;&nbsp; ❌ 做空评分: {short_score:.1f}<br>
-    📈 ATR: {atr_val if atr_val else '-'}<br>
-    📑 依据: {checked_indicators if checked_indicators else "无"}
-    </div>
-    """, unsafe_allow_html=True)
+    
 
 # ================= 雷达图显示（评分构成） =================
     # 使用已计算的子评分（0~1）并映射到0~100
