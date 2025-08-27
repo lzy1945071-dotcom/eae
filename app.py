@@ -1,5 +1,17 @@
 # app.py — Legend Quant Terminal Elite v3 FIX10 (TV风格 + 多指标 + 实时策略增强)
 import streamlit as st
+
+# ==== Sidebar Parameters (optimized for crypto swing trading) ====
+rsi_period = st.sidebar.number_input("RSI周期", value=9)
+macd_fast = st.sidebar.number_input("MACD快线", value=12)
+macd_slow = st.sidebar.number_input("MACD慢线", value=26)
+macd_signal = st.sidebar.number_input("MACD信号线", value=9)
+ma_short = st.sidebar.number_input("短期均线", value=20)
+ma_mid = st.sidebar.number_input("中期均线", value=50)
+ma_long = st.sidebar.number_input("长期均线", value=100)
+adx_period = st.sidebar.number_input("ADX周期", value=10)
+atr_period = st.sidebar.number_input("ATR周期", value=10)
+
 import pandas as pd
 import numpy as np
 import requests
@@ -386,6 +398,71 @@ dfi = add_indicators(df).dropna(how="all")
 def detect_signals(df):
     """检测各种交易信号"""
     signals = pd.DataFrame(index=df.index)
+
+# ==== Signal Logic for Long/Short ====
+descriptions = []
+long_signals = []
+short_signals = []
+for ind in indicators:
+    if ind == "RSI":
+        descriptions.append(f"RSI<{30} 超卖；RSI>{70} 超买")
+        if rsi_value < 30:
+            long_signals.append("✅")
+            short_signals.append("")
+        elif rsi_value > 70:
+            long_signals.append("")
+            short_signals.append("✅")
+        else:
+            long_signals.append("")
+            short_signals.append("")
+    elif ind == "MACD":
+        descriptions.append("MACD金叉看多；死叉看空")
+        if macd_hist > 0 and macd_hist_prev <= 0:
+            long_signals.append("✅")
+            short_signals.append("")
+        elif macd_hist < 0 and macd_hist_prev >= 0:
+            long_signals.append("")
+            short_signals.append("✅")
+        else:
+            long_signals.append("")
+            short_signals.append("")
+    elif ind == "MA":
+        descriptions.append("均线金叉看多；死叉看空")
+        if ma_short_val > ma_long_val:
+            long_signals.append("✅")
+            short_signals.append("")
+        elif ma_short_val < ma_long_val:
+            long_signals.append("")
+            short_signals.append("✅")
+        else:
+            long_signals.append("")
+            short_signals.append("")
+    elif ind == "ADX":
+        descriptions.append("ADX>20 且 +DI>-DI 看多；-DI>+DI 看空")
+        if adx_val > 20 and plus_di > minus_di:
+            long_signals.append("✅")
+            short_signals.append("")
+        elif adx_val > 20 and minus_di > plus_di:
+            long_signals.append("")
+            short_signals.append("✅")
+        else:
+            long_signals.append("")
+            short_signals.append("")
+    elif ind == "Fibonacci":
+        descriptions.append("回调到0.382-0.618 看多；反弹到0.618-0.786 看空")
+        if fib_long_signal:
+            long_signals.append("✅")
+            short_signals.append("")
+        elif fib_short_signal:
+            long_signals.append("")
+            short_signals.append("✅")
+        else:
+            long_signals.append("")
+            short_signals.append("")
+    else:
+        descriptions.append("")
+        long_signals.append("")
+        short_signals.append("")
     
     # MA交叉信号
     if "MA20" in df.columns and "MA50" in df.columns:
@@ -933,42 +1010,6 @@ if page_clean == "策略":
         st.markdown(f"<h2 style='color:red; text-align:center;'>做空评分: <b>{float(short_score):.1f}</b></h2>", unsafe_allow_html=True)
 
     
-    # ================= 顶部关键信息显示 =================
-    try:
-        checked_indicators = "<br>".join(cl_df[cl_df["状态"]=="✅"]["指标"].tolist())
-    except Exception:
-        checked_indicators = ""
-
-    try:
-        current_price_val = float(current_price)
-    except Exception:
-        current_price_val = None
-
-    try:
-        atr_val = float(atr_value)
-    except Exception:
-        atr_val = None
-
-    # 推导策略建议
-    if long_score > short_score:
-        strategy_advice = "做多"
-        advice_color = "green"
-    elif short_score > long_score:
-        strategy_advice = "做空"
-        advice_color = "red"
-    else:
-        strategy_advice = "观望"
-        advice_color = "gray"
-
-    st.markdown(f"""
-    <div style="font-size:20px; font-weight:bold; line-height:1.6; border:2px solid #ddd; padding:10px; border-radius:8px; background-color:#f0f8ff;">
-    📌 当前价: {current_price_val if current_price_val else '-'}<br>
-    📊 建议: <span style='color:{advice_color};'>{strategy_advice}</span><br>
-    ✅ 做多评分: {long_score:.1f} &nbsp;&nbsp; ❌ 做空评分: {short_score:.1f}<br>
-    📈 ATR: {atr_val if atr_val else '-'}<br>
-    📑 依据: {checked_indicators if checked_indicators else "无"}
-    </div>
-    """, unsafe_allow_html=True)
 
 # ================= 雷达图显示（评分构成） =================
     # 使用已计算的子评分（0~1）并映射到0~100
