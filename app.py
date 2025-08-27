@@ -755,7 +755,7 @@ if page_clean == "策略":
     st.markdown("---")
     st.subheader("🧭 实时策略建议（非投资建议）")
 
-    # ================= 顶部关键信息显示 =================
+    # (removed misplaced top summary)
     try:
         checked_indicators = ", ".join(cl_df[cl_df['状态']=="✅"]["指标"].tolist())
     except Exception:
@@ -962,6 +962,43 @@ if page_clean == "策略":
     c5.metric("Fibo 盈亏比（多）", "-" if np.isnan(long_rr) else f"{long_rr:.2f}")
     c6.metric("Fibo 盈亏比（空）", "-" if np.isnan(short_rr) else f"{short_rr:.2f}")
 
+    # ================= 顶部关键信息显示 =================
+    try:
+        checked_indicators = ", ".join(cl_df[cl_df['状态']=="✅"]["指标"].tolist())
+    except Exception:
+        checked_indicators = ""
+
+    try:
+        current_price_val = float(current_price)
+    except Exception:
+        current_price_val = None
+
+    try:
+        atr_val = float(atr_value)
+    except Exception:
+        atr_val = None
+
+    # 推导策略建议
+    if long_score > short_score:
+        strategy_advice = "做多"
+        advice_color = "green"
+    elif short_score > long_score:
+        strategy_advice = "做空"
+        advice_color = "red"
+    else:
+        strategy_advice = "观望"
+        advice_color = "gray"
+
+    st.markdown(f"""
+    <div style="font-size:20px; font-weight:bold; line-height:1.6;">
+    📌 当前价: {current_price_val if current_price_val else '-'}<br>
+    📊 建议: <span style='color:{advice_color};'>{strategy_advice}</span><br>
+    ✅ 做多评分: {long_score:.1f} &nbsp;&nbsp; ❌ 做空评分: {short_score:.1f}<br>
+    📈 ATR: {atr_val if atr_val else '-'}<br>
+    📑 依据: {checked_indicators if checked_indicators else "无"}
+    </div>
+    """, unsafe_allow_html=True)
+    
     # ================= 评分数值文字显示 =================
     colg1, colg2 = st.columns(2)
     with colg1:
