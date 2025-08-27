@@ -201,7 +201,7 @@ with col2:
 # 显示刷新确认和时间
 with col3:
     if st.session_state.show_checkmark:
-        st.success("✅ 数据已刷新")
+        
         if st.session_state.last_refresh_time:
             st.caption(f"最后刷新: {st.session_state.last_refresh_time}")
     elif st.session_state.last_refresh_time:
@@ -1129,13 +1129,7 @@ if page_clean == "策略":
     c4.metric("ATR", f"{atr_val:,.4f}")
     
     st.write("**依据**：", "；".join(reasons) if reasons else "信号不明确，建议观望。")
-    st.info(
-        f"价格百分位：**{pct_rank:.1f}%**｜"
-        f"支撑区：**{support_zone[0]:,.4f} ~ {support_zone[1]:,.4f}**｜"
-        f"压力区：**{resist_zone[0]:,.4f} ~ {resist_zone[1]:,.4f}**｜"
-        f"建议止损：**{sl:,.4f}** ｜ 建议止盈：**{tp:,.4f}**\n\n"
-        f"提示：{hint}"
-    )
+    
     
     # ========================= 胜率统计（简版） =========================
     def simple_backtest(df):
@@ -1179,7 +1173,7 @@ if page_clean == "策略":
     if len(pnl)>0:
         st.plotly_chart(px.histogram(pnl, nbins=20, title="单笔收益分布", config={'scrollZoom': True, 'responsive': True, 'displaylogo': False}), use_container_width=True)
     else:
-        st.info("暂无可统计的交易样本。")
+        
     
     # ========================= 风控面板（结果） =========================
     st.markdown("---")
@@ -1225,7 +1219,7 @@ if page_clean == "策略":
         w_df = pd.DataFrame({"symbol": weights.index, "weight": weights.values})
         st.plotly_chart(px.pie(w_df, names="symbol", values="weight", title="建议权重", config={'scrollZoom': True, 'responsive': True, 'displaylogo': False}), use_container_width=True)
     else:
-        st.info("组合标留空或数据不足。")
+        
     
     # ========================= 新增模块：多指标策略组合 & 绩效预测 =========================
     st.markdown("---")
@@ -1436,7 +1430,7 @@ if page_clean == "策略":
     
     res = backtest_combo(dfi)
     if res is None:
-        st.warning("所选构件不足以生成信号，请至少选择一个构件，并确保相关指标已在左侧勾选。")
+        
     else:
         c1, c2, c3, c4, c5 = st.columns(5)
         c1.metric("胜率", f"{res['win_rate']*100:.2f}%")
@@ -1451,4 +1445,4 @@ if page_clean == "策略":
         if len(res["trades"])>0:
             st.plotly_chart(px.histogram(res["trades"], nbins=20, title="单笔收益分布（组合策略）", config={'scrollZoom': True, 'responsive': True, 'displaylogo': False}), use_container_width=True)
         else:
-            st.info("组合策略暂无闭合交易样本。")
+            
