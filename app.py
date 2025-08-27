@@ -961,7 +961,7 @@ if page_clean == "策略":
         advice_color = "gray"
 
     st.markdown(f"""
-    <div style="font-size:20px; font-weight:bold; line-height:1.6; border:2px solid #ddd; padding:10px; border-radius:8px;">
+    <div style="font-size:20px; font-weight:bold; line-height:1.6; border:2px solid #ddd; padding:10px; border-radius:8px; background-color:#f0f8ff;">
     📌 当前价: {current_price_val if current_price_val else '-'}<br>
     📊 建议: <span style='color:{advice_color};'>{strategy_advice}</span><br>
     ✅ 做多评分: {long_score:.1f} &nbsp;&nbsp; ❌ 做空评分: {short_score:.1f}<br>
