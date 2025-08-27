@@ -301,7 +301,7 @@ try:
         lst = [int(x.strip()) for x in text.split(",") if x.strip()]
         return [x for x in lst if x > 0]
 except Exception:
-        return []
+    return []
 
 def add_indicators(df):
     out = df.copy()
@@ -906,7 +906,7 @@ try:
                 d = load_yf(sym, interval)
             return d["Close"].rename(sym) if not d.empty else None
 except Exception:
-            return None
+    return None
 
     series_list = []
     for s in combo_symbols:
