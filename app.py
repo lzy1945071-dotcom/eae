@@ -458,6 +458,7 @@ support, resistance = calculate_support_resistance(dfi)
 if page_clean == "K线图":
     # ========================= TradingView 风格图表 =========================
     st.subheader(f"🕯️ K线（{symbol} / {source} / {interval}）")
+volume_col = "Volume" if "Volume" in dfi.columns else None
     fig = go.Figure()
     # --- Build hovertext for candlestick (keep original precision) ---
     try:
