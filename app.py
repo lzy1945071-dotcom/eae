@@ -11,6 +11,233 @@ import math
 from datetime import datetime
 import time
 
+# === 技术指标信号表格：计算与渲染（自动注入）===
+import numpy as np
+import pandas as pd
+import streamlit as st
+
+def _resolve_param(name, default):
+    # 优先使用 sidebar / 业务代码存入的 st.session_state 参数
+    try:
+        return st.session_state.get(name, default)
+    except Exception:
+        return default
+
+# ---- 指标计算 ----
+def _ema(series, span):
+    return series.ewm(span=span, adjust=False).mean()
+
+def calc_macd(close, fast=12, slow=26, signal=9):
+    dif = _ema(close, fast) - _ema(close, slow)
+    dea = _ema(dif, signal)
+    hist = dif - dea
+    return dif, dea, hist
+
+def calc_rsi(close, period=14):
+    delta = close.diff()
+    up = np.where(delta > 0, delta, 0.0)
+    down = np.where(delta < 0, -delta, 0.0)
+    roll_up = pd.Series(up, index=close.index).ewm(alpha=1/period, adjust=False).mean()
+    roll_down = pd.Series(down, index=close.index).ewm(alpha=1/period, adjust=False).mean()
+    rs = (roll_up / (roll_down.replace(0, np.nan))).replace([np.inf, -np.inf], np.nan).fillna(0)
+    rsi = 100 - (100 / (1 + rs))
+    return rsi
+
+def calc_bbands(close, period=20, k=2.0):
+    mid = close.rolling(period, min_periods=1).mean()
+    std = close.rolling(period, min_periods=1).std(ddof=0)
+    upper = mid + k * std
+    lower = mid - k * std
+    width = (upper - lower) / mid.replace(0, np.nan)
+    return upper, mid, lower, width
+
+def calc_ma(close, period=5):
+    return close.rolling(period, min_periods=1).mean()
+
+def calc_ema(close, period=12):
+    return _ema(close, period)
+
+def calc_atr(df, period=14):
+    h, l, c = df['high'], df['low'], df['close']
+    prev_close = c.shift(1)
+    tr = pd.concat([(h - l).abs(),
+                    (h - prev_close).abs(),
+                    (l - prev_close).abs()], axis=1).max(axis=1)
+    atr = tr.rolling(window=period, min_periods=1).mean()
+    return atr
+
+def calc_cci(df, period=20):
+    tp = (df['high'] + df['low'] + df['close']) / 3.0
+    sma = tp.rolling(window=period, min_periods=1).mean()
+    mad = (tp - sma).abs().rolling(window=period, min_periods=1).mean()
+    cci = (tp - sma) / (0.015 * mad.replace(0, np.nan)).fillna(0)
+    return cci
+
+def calc_vwap(df):
+    # 简化版 VWAP：从数据起点累积（适用于日/更高频数据）
+    pv = (df['close'] * df['volume']).cumsum()
+    vv = (df['volume']).replace(0, np.nan).cumsum()
+    vwap = (pv / vv).fillna(method='ffill').fillna(df['close'])
+    return vwap
+
+# ---- 信号与理由 ----
+def _tick(v):
+    return "✔️" if v else ""
+
+def _fmt(v, nd=2):
+    try:
+        return f"{float(v):.{nd}f}"
+    except Exception:
+        return str(v)
+
+def build_indicator_signals(price_df):
+    if price_df is None or not set(['close','high','low','volume']).issubset(price_df.columns):
+        return pd.DataFrame(columns=["指标","做多","做空","说明"])
+
+    df = price_df.copy()
+    close = df['close']
+
+    # 参数从 sidebar（session_state）读取，失败则使用常见默认值
+    p = {
+        "macd_fast": _resolve_param("macd_fast", 12),
+        "macd_slow": _resolve_param("macd_slow", 26),
+        "macd_signal": _resolve_param("macd_signal", 9),
+        "rsi_period": _resolve_param("rsi_period", 14),
+        "rsi_upper": _resolve_param("rsi_upper", 70),
+        "rsi_lower": _resolve_param("rsi_lower", 30),
+        "bb_period": _resolve_param("bb_period", 20),
+        "bb_k": _resolve_param("bb_k", 2.0),
+        "ma_short": _resolve_param("ma_short", 5),
+        "ma_long": _resolve_param("ma_long", 20),
+        "ema_short": _resolve_param("ema_short", 12),
+        "ema_long": _resolve_param("ema_long", 26),
+        "atr_period": _resolve_param("atr_period", 14),
+        "cci_period": _resolve_param("cci_period", 20),
+    }
+
+    rows = []
+
+    # --- MACD ---
+    dif, dea, hist = calc_macd(close, p["macd_fast"], p["macd_slow"], p["macd_signal"])
+    last_dif, last_dea, prev_dif, prev_dea = dif.iloc[-1], dea.iloc[-1], dif.iloc[-2], dea.iloc[-2]
+    last_hist, prev_hist = hist.iloc[-1], hist.iloc[-2]
+    macd_long = (last_dif > last_dea) and (prev_dif <= prev_dea) or (last_hist > 0 and last_hist > prev_hist)
+    macd_short = (last_dif < last_dea) and (prev_dif >= prev_dea) or (last_hist < 0 and last_hist < prev_hist)
+    if macd_long and macd_short:  # 冲突时以最新柱体方向为准
+        macd_long, macd_short = (last_hist > 0), (last_hist < 0)
+    macd_reason = []
+    if (last_dif > last_dea) and (prev_dif <= prev_dea):
+        macd_reason.append("DIF 上穿 DEA（{}/{}/{}）".format(p["macd_fast"], p["macd_slow"], p["macd_signal"]))
+    if (last_dif < last_dea) and (prev_dif >= prev_dea):
+        macd_reason.append("DIF 下穿 DEA（{}/{}/{}）".format(p["macd_fast"], p["macd_slow"], p["macd_signal"]))
+    if last_hist > prev_hist:
+        macd_reason.append("柱体放大（{}→{}）".format(_fmt(prev_hist), _fmt(last_hist)))
+    if last_hist < prev_hist:
+        macd_reason.append("柱体缩小（{}→{}）".format(_fmt(prev_hist), _fmt(last_hist)))
+    rows.append(["MACD", _tick(macd_long), _tick(macd_short), "；".join(macd_reason) or "无明显信号"])
+
+    # --- RSI ---
+    rsi = calc_rsi(close, p["rsi_period"])
+    last_rsi, prev_rsi = rsi.iloc[-1], rsi.iloc[-2]
+    rsi_long = (prev_rsi <= p["rsi_lower"] and last_rsi > p["rsi_lower"]) or (last_rsi < p["rsi_lower"])
+    rsi_short = (prev_rsi >= p["rsi_upper"] and last_rsi < p["rsi_upper"]) or (last_rsi > p["rsi_upper"])
+    rsi_reason = []
+    if (prev_rsi <= p["rsi_lower"] and last_rsi > p["rsi_lower"]):
+        rsi_reason.append(f"RSI 上穿下阈 {p['rsi_lower']}（{_fmt(prev_rsi)}→{_fmt(last_rsi)}）")
+    if (prev_rsi >= p["rsi_upper"] and last_rsi < p["rsi_upper"]):
+        rsi_reason.append(f"RSI 下穿上阈 {p['rsi_upper']}（{_fmt(prev_rsi)}→{_fmt(last_rsi)}）")
+    if last_rsi < p["rsi_lower"]:
+        rsi_reason.append(f"RSI<{p['rsi_lower']}：超卖")
+    if last_rsi > p["rsi_upper"]:
+        rsi_reason.append(f"RSI>{p['rsi_upper']}：超买")
+    rows.append(["RSI", _tick(rsi_long), _tick(rsi_short), "；".join(rsi_reason) or "无明显信号"])
+
+    # --- 布林带 BBands ---
+    bb_u, bb_m, bb_l, bb_w = calc_bbands(close, p["bb_period"], p["bb_k"])
+    last_close, prev_close = close.iloc[-1], close.iloc[-2]
+    last_u, last_l = bb_u.iloc[-1], bb_l.iloc[-1]
+    prev_u, prev_l = bb_u.iloc[-2], bb_l.iloc[-2]
+    bb_long = (prev_close <= prev_l and last_close > last_l) or (last_close < last_l)
+    bb_short = (prev_close >= prev_u and last_close < last_u) or (last_close > last_u)
+    bb_reason = []
+    if (prev_close <= prev_l and last_close > last_l):
+        bb_reason.append("下轨反弹（收盘价上穿下轨）")
+    if (prev_close >= prev_u and last_close < last_u):
+        bb_reason.append("上轨回落（收盘价下穿上轨）")
+    if last_close < last_l:
+        bb_reason.append("收盘价低于下轨")
+    if last_close > last_u:
+        bb_reason.append("收盘价高于上轨")
+    rows.append(["Bollinger Bands", _tick(bb_long), _tick(bb_short), "；".join(bb_reason) or "无明显信号"])
+
+    # --- 均线（MA/EMA） ---
+    ma_s, ma_l = calc_ma(close, p["ma_short"]), calc_ma(close, p["ma_long"])
+    ema_s, ema_l = calc_ema(close, p["ema_short"]), calc_ema(close, p["ema_long"])
+
+    # MA 金叉/死叉
+    prev_diff_ma = ma_s.iloc[-2] - ma_l.iloc[-2]
+    last_diff_ma = ma_s.iloc[-1] - ma_l.iloc[-1]
+    ma_long = (prev_diff_ma <= 0 and last_diff_ma > 0)
+    ma_short = (prev_diff_ma >= 0 and last_diff_ma < 0)
+    ma_reason = []
+    if ma_long: ma_reason.append(f"MA 金叉（{p['ma_short']}/{p['ma_long']}）")
+    if ma_short: ma_reason.append(f"MA 死叉（{p['ma_short']}/{p['ma_long']}）")
+    rows.append([f"MA({p['ma_short']},{p['ma_long']})", _tick(ma_long), _tick(ma_short), "；".join(ma_reason) or "无明显信号"])
+
+    # EMA 金叉/死叉（可选，给出更敏感的趋势）
+    prev_diff_ema = ema_s.iloc[-2] - ema_l.iloc[-2]
+    last_diff_ema = ema_s.iloc[-1] - ema_l.iloc[-1]
+    ema_long = (prev_diff_ema <= 0 and last_diff_ema > 0)
+    ema_short = (prev_diff_ema >= 0 and last_diff_ema < 0)
+    ema_reason = []
+    if ema_long: ema_reason.append(f"EMA 金叉（{p['ema_short']}/{p['ema_long']}）")
+    if ema_short: ema_reason.append(f"EMA 死叉（{p['ema_short']}/{p['ema_long']}）")
+    rows.append([f"EMA({p['ema_short']},{p['ema_long']})", _tick(ema_long), _tick(ema_short), "；".join(ema_reason) or "无明显信号"])
+
+    # --- ATR ---
+    atr = calc_atr(df, p["atr_period"])
+    atr_change = atr.diff().iloc[-1]
+    atr_long = atr_change > 0
+    atr_short = atr_change < 0
+    atr_reason = [f"ATR{'上升' if atr_change>0 else ('下降' if atr_change<0 else '持平')}（Δ={_fmt(atr_change)}，周期={p['atr_period']}）"]
+    rows.append([f"ATR({p['atr_period']})", _tick(atr_long), _tick(atr_short), "；".join(atr_reason)])
+
+    # --- CCI ---
+    cci = calc_cci(df, p["cci_period"])
+    last_cci, prev_cci = cci.iloc[-1], cci.iloc[-2]
+    cci_long = (last_cci > 100) or (prev_cci <= 100 and last_cci > 100)
+    cci_short = (last_cci < -100) or (prev_cci >= -100 and last_cci < -100)
+    cci_reason = []
+    if (prev_cci <= 100 and last_cci > 100):
+        cci_reason.append("CCI 上穿 +100")
+    if (prev_cci >= -100 and last_cci < -100):
+        cci_reason.append("CCI 下穿 -100")
+    if last_cci > 100: cci_reason.append(f"CCI={_fmt(last_cci)} > +100")
+    if last_cci < -100: cci_reason.append(f"CCI={_fmt(last_cci)} < -100")
+    rows.append([f"CCI({p['cci_period']})", _tick(cci_long), _tick(cci_short), "；".join(cci_reason) or "无明显信号"])
+
+    # --- VWP / VWAP ---
+    vwap = calc_vwap(df)
+    last_vwap = vwap.iloc[-1]
+    vwp_long = last_close > last_vwap
+    vwp_short = last_close < last_vwap
+    vwp_reason = [f"收盘价 {_fmt(last_close)} {'高于' if vwp_long else ('低于' if vwp_short else '等于')} VWAP {_fmt(last_vwap)}"]
+    rows.append(["VWAP", _tick(vwp_long), _tick(vwp_short), "；".join(vwp_reason)])
+
+    out = pd.DataFrame(rows, columns=["指标","做多","做空","说明"])
+    return out
+
+def render_indicator_signal_table(price_df):
+    try:
+        df = build_indicator_signals(price_df)
+        st.subheader("技术指标信号")
+        st.caption("基于 Sidebar 的标的与周期参数，输出每个指标的做多/做空信号（✔️）及理由。")
+        st.dataframe(df, use_container_width=True)
+    except Exception as e:
+        st.warning(f"技术指标信号表格生成失败：{e}")
+
+
+
 st.set_page_config(page_title="Legend Quant Terminal Elite v3 FIX10", layout="wide")
 
 # ===== 页面切换（Sidebar 单点按钮：K线图 / 策略） =====
@@ -976,7 +1203,18 @@ if page_clean == "策略":
     ]
     radar_values = [v*100 for v in radar_values01]
     fig_radar = go.Figure()
-    fig_radar.add_trace(go.Scatterpolar(
+    fig_radar.add_trace(
+# === 技术指标信号表格（自动注入）===
+try:
+    render_indicator_signal_table(price_df)
+except Exception:
+    try:
+        render_indicator_signal_table(globals().get('df') or globals().get('data_df'))
+    except Exception:
+        import streamlit as st
+        st.info('未检测到价格数据（需包含 close/high/low/volume 列），无法生成技术指标信号表格。')
+
+go.Scatterpolar(
         r=radar_values + [radar_values[0]],
         theta=radar_factors + [radar_factors[0]],
         fill='toself',
