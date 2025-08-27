@@ -924,43 +924,12 @@ if page_clean == "策略":
     c5.metric("Fibo 盈亏比（多）", "-" if np.isnan(long_rr) else f"{long_rr:.2f}")
     c6.metric("Fibo 盈亏比（空）", "-" if np.isnan(short_rr) else f"{short_rr:.2f}")
 
-    # ================= 仪表盘显示（做多 / 做空评分） =================
-    import plotly.graph_objects as go
+    # ================= 评分数值文字显示 =================
     colg1, colg2 = st.columns(2)
     with colg1:
-        fig_long = go.Figure(go.Indicator(
-            mode="gauge+number",
-            value=float(long_score),
-            number={'font': {'size': 48, 'color': 'black'}},  # 大号加粗字体
-            title={'text': "做多评分"},
-            gauge={
-                'axis': {'range': [0, 100]},
-                'bar': {'color': "green"},
-                'steps': [
-                    {'range': [0, 30], 'color': "#ffeeee"},
-                    {'range': [30, 70], 'color': "#ffffdd"},
-                    {'range': [70, 100], 'color': "#e6ffe6"}
-                ]
-            }
-        ))
-        st.plotly_chart(fig_long, use_container_width=True)
+        st.markdown(f"<h2 style='color:green; text-align:center;'>做多评分: <b>{float(long_score):.1f}</b></h2>", unsafe_allow_html=True)
     with colg2:
-        fig_short = go.Figure(go.Indicator(
-            mode="gauge+number",
-            value=float(short_score),
-            number={'font': {'size': 48, 'color': 'black'}},  # 大号加粗字体
-            title={'text': "做空评分"},
-            gauge={
-                'axis': {'range': [0, 100]},
-                'bar': {'color': "red"},
-                'steps': [
-                    {'range': [0, 30], 'color': "#e6ffe6"},
-                    {'range': [30, 70], 'color': "#ffffdd"},
-                    {'range': [70, 100], 'color': "#ffeeee"}
-                ]
-            }
-        ))
-        st.plotly_chart(fig_short, use_container_width=True)
+        st.markdown(f"<h2 style='color:red; text-align:center;'>做空评分: <b>{float(short_score):.1f}</b></h2>", unsafe_allow_html=True)
 
     # ================= 雷达图显示（评分构成） =================
     # 使用已计算的子评分（0~1）并映射到0~100
