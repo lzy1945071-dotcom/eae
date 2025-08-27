@@ -757,7 +757,7 @@ if page_clean == "策略":
 
     # (removed misplaced top summary)
     try:
-        checked_indicators = ", ".join(cl_df[cl_df['状态']=="✅"]["指标"].tolist())
+        checked_indicators = "<br>".join(cl_df[cl_df["状态"]=="✅"]["指标"].tolist())
     except Exception:
         checked_indicators = ""
 
@@ -962,9 +962,9 @@ if page_clean == "策略":
     c5.metric("Fibo 盈亏比（多）", "-" if np.isnan(long_rr) else f"{long_rr:.2f}")
     c6.metric("Fibo 盈亏比（空）", "-" if np.isnan(short_rr) else f"{short_rr:.2f}")
 
-    # ================= 顶部关键信息显示 =================
+    # (removed old summary block)
     try:
-        checked_indicators = ", ".join(cl_df[cl_df['状态']=="✅"]["指标"].tolist())
+        checked_indicators = "<br>".join(cl_df[cl_df["状态"]=="✅"]["指标"].tolist())
     except Exception:
         checked_indicators = ""
 
@@ -1006,7 +1006,45 @@ if page_clean == "策略":
     with colg2:
         st.markdown(f"<h2 style='color:red; text-align:center;'>做空评分: <b>{float(short_score):.1f}</b></h2>", unsafe_allow_html=True)
 
-    # ================= 雷达图显示（评分构成） =================
+    
+    # ================= 顶部关键信息显示 =================
+    try:
+        checked_indicators = "<br>".join(cl_df[cl_df["状态"]=="✅"]["指标"].tolist())
+    except Exception:
+        checked_indicators = ""
+
+    try:
+        current_price_val = float(current_price)
+    except Exception:
+        current_price_val = None
+
+    try:
+        atr_val = float(atr_value)
+    except Exception:
+        atr_val = None
+
+    # 推导策略建议
+    if long_score > short_score:
+        strategy_advice = "做多"
+        advice_color = "green"
+    elif short_score > long_score:
+        strategy_advice = "做空"
+        advice_color = "red"
+    else:
+        strategy_advice = "观望"
+        advice_color = "gray"
+
+    st.markdown(f"""
+    <div style="font-size:20px; font-weight:bold; line-height:1.6; border:2px solid #ddd; padding:10px; border-radius:8px;">
+    📌 当前价: {current_price_val if current_price_val else '-'}<br>
+    📊 建议: <span style='color:{advice_color};'>{strategy_advice}</span><br>
+    ✅ 做多评分: {long_score:.1f} &nbsp;&nbsp; ❌ 做空评分: {short_score:.1f}<br>
+    📈 ATR: {atr_val if atr_val else '-'}<br>
+    📑 依据: {checked_indicators if checked_indicators else "无"}
+    </div>
+    """, unsafe_allow_html=True)
+
+# ================= 雷达图显示（评分构成） =================
     # 使用已计算的子评分（0~1）并映射到0~100
     def _nz(x, default=0.5):
         try:
