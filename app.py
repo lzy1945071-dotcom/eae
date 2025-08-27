@@ -129,7 +129,7 @@ psar_step = st.sidebar.number_input("PSAR 步长", min_value=0.001, value=0.02, 
 psar_max_step = st.sidebar.number_input("PSAR 最大步长", min_value=0.01, value=0.2, step=0.01, format="%.2f")
 
 # ===== 新增：KDJ指标 =====
-use_kdj = st.sidebar.checkbox("KDJ（副图）", True)
+use_kdj = st.sidebar.checkbox("KDJ（副图）", False)
 kdj_window = st.sidebar.number_input("KDJ 窗口", min_value=5, value=9, step=1)
 kdj_smooth_k = st.sidebar.number_input("K值平滑", min_value=1, value=3, step=1)
 kdj_smooth_d = st.sidebar.number_input("D值平滑", min_value=1, value=3, step=1)
@@ -662,7 +662,8 @@ if page_clean == "K线图":
             name="KDJ_K", 
             yaxis="y5", 
             mode="lines",
-            line=dict(color="#ff7f0e")# 默认隐藏
+            line=dict(color="#ff7f0e"),
+            visible="legendonly"  # 默认隐藏
         ))
         fig.add_trace(go.Scatter(
             x=dfi.index, 
@@ -670,7 +671,8 @@ if page_clean == "K线图":
             name="KDJ_D", 
             yaxis="y5", 
             mode="lines",
-            line=dict(color="#1f77b4")# 默认隐藏
+            line=dict(color="#1f77b4"),
+            visible="legendonly"  # 默认隐藏
         ))
         fig.add_trace(go.Scatter(
             x=dfi.index, 
@@ -678,50 +680,14 @@ if page_clean == "K线图":
             name="KDJ_J", 
             yaxis="y5", 
             mode="lines",
-            line=dict(color="#2ca02c")# 默认隐藏
+            line=dict(color="#2ca02c"),
+            visible="legendonly"  # 默认隐藏
         ))
         # 添加KDJ超买超卖线
         fig.add_hline(y=80, line_dash="dash", line_color="red", yref="y5", opacity=0.5)
         fig.add_hline(y=20, line_dash="dash", line_color="green", yref="y5", opacity=0.5)
     
     # 更新图表布局
-    # ===== 斐波那契回撤（默认隐藏，图例中点击开启；组点击=全显/全隐） =====
-    # 侧边栏设置：自动/手动 以及lookback
-    with st.sidebar.expander("⚙️ 斐波那契设置", expanded=False):
-        use_auto_fib = st.checkbox("自动高低点（最近N根K线）", value=True, key="auto_fib")
-        lookback = st.number_input("N（最近N根K线）", min_value=20, max_value=2000, value=100, step=10, key="fib_lookback")
-        if not use_auto_fib:
-            fib_high = st.number_input("自定义高点", min_value=0.0, value=float(dfi["High"].max()), key="fib_high")
-            fib_low = st.number_input("自定义低点", min_value=0.0, value=float(dfi["Low"].min()), key="fib_low")
-        else:
-            sub_df = dfi.tail(int(lookback))
-            fib_high = float(sub_df["High"].max())
-            fib_low = float(sub_df["Low"].min())
-
-    # 始终添加（legendonly）以便在图例点击开启
-    levels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1]
-    first = True
-    for lvl in levels:
-        price = fib_high - (fib_high - fib_low) * lvl
-        fig.add_trace(
-            go.Scatter(
-                x=[dfi.index[0], dfi.index[-1]],
-                y=[price, price],
-                mode="lines",
-                name=f"Fibonacci {lvl*100:.1f}%",
-                line=dict(dash="dot"),
-                visible="legendonly",
-                legendgroup="Fibonacci",
-                showlegend=first,
-                legendgrouptitle_text="Fibonacci"
-            ),
-            # 主图轴
-        )
-        first = False
-
-    # 组点击行为：点击一个成员即可全显/全隐
-    fig.update_layout(legend=dict(groupclick="togglegroup"))
-    
     fig.update_layout(
         hovermode='x unified',
         xaxis=dict(showspikes=True, spikemode='across', spikesnap='cursor', showline=True),
