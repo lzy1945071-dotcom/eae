@@ -478,6 +478,29 @@ if page_clean == "K线图":
     # ========================= TradingView 风格图表 =========================
     st.subheader(f"🕯️ K线（{symbol} / {source} / {interval}）")
     fig = go.Figure()
+
+    # ========== 斐波那契交互功能 ==========
+    import plotly.graph_objects as go
+
+    if "show_fibo" not in st.session_state:
+        st.session_state.show_fibo = False
+
+    fibo_toggle = go.Scatter(x=[None], y=[None], mode="lines", name="斐波那契",
+                             line=dict(color="purple", width=2, dash="dot"))
+
+    fig.add_trace(fibo_toggle)
+
+    if st.session_state.show_fibo:
+        lookback = 100
+        sub_df = dfi.tail(lookback)
+        fib_high = sub_df['High'].max()
+        fib_low = sub_df['Low'].min()
+        diff = fib_high - fib_low
+        fib_levels = [0.236, 0.382, 0.5, 0.618, 0.786]
+        for lvl in fib_levels:
+            price = fib_high - diff * lvl
+            fig.add_hline(y=price, line=dict(color="purple", dash="dot"),
+                          annotation_text=f"Fib {lvl*100:.1f}%")
     # --- Build hovertext for candlestick (keep original precision) ---
     try:
         # choose volume column
