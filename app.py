@@ -755,69 +755,6 @@ if page_clean == "策略":
     st.markdown("---")
     st.subheader("🧭 实时策略建议（非投资建议）")
 
-    # ================= 仪表盘显示（做多 / 做空评分） =================
-    import plotly.graph_objects as go
-
-    col1, col2 = st.columns(2)
-    with col1:
-        fig_long = go.Figure(go.Indicator(
-            mode="gauge+number",
-            value=long_score,
-            title={'text': "做多评分"},
-            gauge={
-                'axis': {'range': [0, 100]},
-                'bar': {'color': "green"},
-                'steps': [
-                    {'range': [0, 30], 'color': "#ffeeee"},
-                    {'range': [30, 70], 'color': "#ffffdd"},
-                    {'range': [70, 100], 'color': "#e6ffe6"}
-                ]
-            }
-        ))
-        st.plotly_chart(fig_long, use_container_width=True)
-
-    with col2:
-        fig_short = go.Figure(go.Indicator(
-            mode="gauge+number",
-            value=short_score,
-            title={'text': "做空评分"},
-            gauge={
-                'axis': {'range': [0, 100]},
-                'bar': {'color': "red"},
-                'steps': [
-                    {'range': [0, 30], 'color': "#e6ffe6"},
-                    {'range': [30, 70], 'color': "#ffffdd"},
-                    {'range': [70, 100], 'color': "#ffeeee"}
-                ]
-            }
-        ))
-        st.plotly_chart(fig_short, use_container_width=True)
-
-    # ================= 雷达图显示（评分构成） =================
-    # 假设已有子评分：trend_score, momentum_score, rsi_score, vol_score, mfi_score
-    try:
-        factors = ["趋势", "动能", "超买超卖", "波动", "量能"]
-        values = [trend_score, momentum_score, rsi_score, vol_score, mfi_score]
-
-        fig_radar = go.Figure()
-        fig_radar.add_trace(go.Scatterpolar(
-            r=values + [values[0]],  # 闭合
-            theta=factors + [factors[0]],
-            fill='toself',
-            name='评分构成'
-        ))
-        fig_radar.update_layout(
-            polar=dict(
-                radialaxis=dict(visible=True, range=[0, 100])
-            ),
-            showlegend=False,
-            title="评分构成雷达图"
-        )
-        st.plotly_chart(fig_radar, use_container_width=True)
-    except Exception as e:
-        st.warning(f"雷达图生成失败: {e}")
-
-
     # === 新增：做多/做空评分 + ADX趋势强度 + 斐波那契盈亏比 + 诱多/诱空概率 + 指标打勾清单 ===
     # 取最新一根K线数据
     last = dfi.dropna().iloc[-1]
@@ -986,6 +923,69 @@ if page_clean == "策略":
     c5, c6 = st.columns(2)
     c5.metric("Fibo 盈亏比（多）", "-" if np.isnan(long_rr) else f"{long_rr:.2f}")
     c6.metric("Fibo 盈亏比（空）", "-" if np.isnan(short_rr) else f"{short_rr:.2f}")
+
+    # ================= 仪表盘显示（做多 / 做空评分） =================
+    import plotly.graph_objects as go
+    colg1, colg2 = st.columns(2)
+    with colg1:
+        fig_long = go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=float(long_score),
+            title={'text': "做多评分"},
+            gauge={
+                'axis': {'range': [0, 100]},
+                'bar': {'color': "green"},
+                'steps': [
+                    {'range': [0, 30], 'color': "#ffeeee"},
+                    {'range': [30, 70], 'color': "#ffffdd"},
+                    {'range': [70, 100], 'color': "#e6ffe6"}
+                ]
+            }
+        ))
+        st.plotly_chart(fig_long, use_container_width=True)
+    with colg2:
+        fig_short = go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=float(short_score),
+            title={'text': "做空评分"},
+            gauge={
+                'axis': {'range': [0, 100]},
+                'bar': {'color': "red"},
+                'steps': [
+                    {'range': [0, 30], 'color': "#e6ffe6"},
+                    {'range': [30, 70], 'color': "#ffffdd"},
+                    {'range': [70, 100], 'color': "#ffeeee"}
+                ]
+            }
+        ))
+        st.plotly_chart(fig_short, use_container_width=True)
+
+    # ================= 雷达图显示（评分构成） =================
+    # 使用已计算的子评分（0~1）并映射到0~100
+    def _nz(x, default=0.5):
+        try:
+            import numpy as _np
+            return float(x) if (x is not None and not _np.isnan(x)) else float(default)
+        except Exception:
+            return float(default)
+    radar_factors = ["趋势","动能","超买超卖","波动","量能","其它"]
+    radar_values01 = [
+        _nz(trend_up_score), _nz(mom_up_score), _nz(obos_up_score), _nz(vol_score), _nz(volu_up_score), _nz(extras_up)
+    ]
+    radar_values = [v*100 for v in radar_values01]
+    fig_radar = go.Figure()
+    fig_radar.add_trace(go.Scatterpolar(
+        r=radar_values + [radar_values[0]],
+        theta=radar_factors + [radar_factors[0]],
+        fill='toself',
+        name='评分构成'
+    ))
+    fig_radar.update_layout(
+        polar=dict(radialaxis=dict(visible=True, range=[0,100])),
+        showlegend=False,
+        title="评分构成雷达图"
+    )
+    st.plotly_chart(fig_radar, use_container_width=True)
     
     # ---------- 指标清单（到达信号打勾） ----------
     checklist = []
