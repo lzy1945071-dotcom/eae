@@ -718,15 +718,32 @@ if page_clean == "K线图":
     
 if page_clean == "策略":
     # ========================= 新增功能 =========================
-    # --- ADX 趋势强度 ---
-    if "ADX" in dfi.columns:
-        adx_strength = float(last.get("ADX", 0))
-        trend_desc = "震荡/弱趋势"
-        if adx_strength > 25:
-            trend_desc = "趋势显著"
-        elif adx_strength > 20:
-            trend_desc = "趋势初步形成"
-        st.metric("ADX", f"{adx_strength:.2f}", trend_desc)
+# --- ADX 趋势强度 ---
+# 确保常用变量存在以避免 NameError（例如 last/ma20/ma50/price）
+if 'last' not in locals():
+    try:
+        last = dfi.dropna().iloc[-1]
+    except Exception:
+        last = dfi.iloc[-1]
+price = float(last["Close"]) if ("Close" in getattr(last, 'index', [])) else (float(dfi["Close"].iloc[-1]) if "Close" in dfi.columns else None)
+if 'ma20' not in locals():
+    ma20 = dfi["MA20"].iloc[-1] if "MA20" in dfi.columns else np.nan
+if 'ma50' not in locals():
+    ma50 = dfi["MA50"].iloc[-1] if "MA50" in dfi.columns else np.nan
+
+if "ADX" in dfi.columns:
+    try:
+        adx_strength = float(last["ADX"]) if ("ADX" in getattr(last, 'index', [])) else float(dfi["ADX"].iloc[-1])
+    except Exception:
+        adx_strength = 0.0
+    trend_desc = "震荡/弱趋势"
+    if adx_strength > 25:
+        trend_desc = "趋势显著"
+    elif adx_strength > 20:
+        trend_desc = "趋势初步形成"
+    st.metric("ADX", f"{adx_strength:.2f}", trend_desc)
+else:
+    adx_strength = 0.0
 
     # --- 斐波那契回调位 ---
     try:
