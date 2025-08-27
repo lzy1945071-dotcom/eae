@@ -1,17 +1,5 @@
 # app.py — Legend Quant Terminal Elite v3 FIX10 (TV风格 + 多指标 + 实时策略增强)
 import streamlit as st
-
-# ==== Sidebar Parameters (optimized for crypto swing trading) ====
-rsi_period = st.sidebar.number_input("RSI周期", value=9)
-macd_fast = st.sidebar.number_input("MACD快线", value=12)
-macd_slow = st.sidebar.number_input("MACD慢线", value=26)
-macd_signal = st.sidebar.number_input("MACD信号线", value=9)
-ma_short = st.sidebar.number_input("短期均线", value=20)
-ma_mid = st.sidebar.number_input("中期均线", value=50)
-ma_long = st.sidebar.number_input("长期均线", value=100)
-adx_period = st.sidebar.number_input("ADX周期", value=10)
-atr_period = st.sidebar.number_input("ATR周期", value=10)
-
 import pandas as pd
 import numpy as np
 import requests
@@ -27,14 +15,14 @@ st.set_page_config(page_title="Legend Quant Terminal Elite v3 FIX10", layout="wi
 
 # ===== 页面切换（Sidebar 单点按钮：K线图 / 策略） =====
 if 'page' not in st.session_state:
-st.session_state['page'] = "📈 K线图"
+    st.session_state['page'] = "📈 K线图"
 
 st.sidebar.markdown("### 页面切换")
 page = st.sidebar.radio(
-"选择页面",
-["📈 K线图", "📊 策略"],
-index=0,
-key="page"
+    "选择页面",
+    ["📈 K线图", "📊 策略"],
+    index=0,
+    key="page"
 )
 
 # 去掉 emoji，只保留文字，方便后面判断
@@ -44,33 +32,33 @@ st.title("💎 Legend Quant Terminal Elite v3 FIX10")
 
 # 初始化会话状态
 if 'last_refresh_time' not in st.session_state:
-st.session_state.last_refresh_time = None
+    st.session_state.last_refresh_time = None
 if 'show_checkmark' not in st.session_state:
-st.session_state.show_checkmark = False
+    st.session_state.show_checkmark = False
 if 'refresh_counter' not in st.session_state:
-st.session_state.refresh_counter = 0
+    st.session_state.refresh_counter = 0
 
 # ========================= 添加自动刷新功能 =========================
 st.sidebar.header("🔄 刷新")
 auto_refresh = st.sidebar.checkbox("启用自动刷新", value=False)
 if auto_refresh:
-refresh_interval = st.sidebar.number_input("自动刷新间隔(秒)", min_value=1, value=60, step=1)
-st_autorefresh(interval=refresh_interval * 1000, key="auto_refresh")
+    refresh_interval = st.sidebar.number_input("自动刷新间隔(秒)", min_value=1, value=60, step=1)
+    st_autorefresh(interval=refresh_interval * 1000, key="auto_refresh")
 
 
 
 # ========================= Sidebar: ① 数据来源与标的 =========================
 st.sidebar.header("① 数据来源与标的")
 source = st.sidebar.selectbox(
-"数据来源",
-[
-"OKX 公共行情（免API）",
-"CoinGecko（免API）",
-"OKX API（可填API基址）",
-"TokenInsight API 模式（可填API基址）",
-"Yahoo Finance（美股/A股）",
-],
-index=0
+    "数据来源",
+    [
+        "OKX 公共行情（免API）",
+        "CoinGecko（免API）",
+        "OKX API（可填API基址）",
+        "TokenInsight API 模式（可填API基址）",
+        "Yahoo Finance（美股/A股）",
+    ],
+    index=0
 )
 
 api_base = ""
@@ -79,33 +67,27 @@ api_secret = ""
 api_passphrase = ""
 
 if source in ["OKX API（可填API基址）", "TokenInsight API 模式（可填API基址）"]:
-st.sidebar.markdown("**API 连接设置**")
-api_base = st.sidebar.text_input("API 基址（留空用默认公共接口）", value="")
+    st.sidebar.markdown("**API 连接设置**")
+    api_base = st.sidebar.text_input("API 基址（留空用默认公共接口）", value="")
     if source == "OKX API（可填API基址）":
         with st.sidebar.expander("（可选）OKX API 认证信息"):
-api_key = st.text_input("OKX-API-KEY", value="", type="password")
-api_secret = st.text_input("OKX-API-SECRET", value="", type="password")
-api_passphrase = st.text_input("OKX-API-PASSPHRASE", value="", type="password")
+            api_key = st.text_input("OKX-API-KEY", value="", type="password")
+            api_secret = st.text_input("OKX-API-SECRET", value="", type="password")
+            api_passphrase = st.text_input("OKX-API-PASSPHRASE", value="", type="password")
 
 # 标的与周期
 if source in ["CoinGecko（免API）", "TokenInsight API 模式（可填API基址）"]:
-symbol = st.sidebar.selectbox("个标（CoinGecko coin_id）", ["bitcoin","ethereum","solana","dogecoin","cardano","ripple","polkadot"], index=1)
-combo_symbols = st.sidebar.multiselect("组合标（可多选，默认留空）", ["bitcoin","ethereum","solana","dogecoin","cardano","ripple","polkadot"], default=[])
-interval = st.sidebar.selectbox("K线周期（映射）", ["1d","1w","1M","max"], index=0, help="CoinGecko/TokenInsight 免费接口多为日级/周级聚合，不提供细分分钟线。")
+    symbol = st.sidebar.selectbox("个标（CoinGecko coin_id）", ["bitcoin","ethereum","solana","dogecoin","cardano","ripple","polkadot"], index=1)
+    combo_symbols = st.sidebar.multiselect("组合标（可多选，默认留空）", ["bitcoin","ethereum","solana","dogecoin","cardano","ripple","polkadot"], default=[])
+    interval = st.sidebar.selectbox("K线周期（映射）", ["1d","1w","1M","max"], index=0, help="CoinGecko/TokenInsight 免费接口多为日级/周级聚合，不提供细分分钟线。")
 elif source in ["OKX 公共行情（免API）", "OKX API（可填API基址）"]:
-symbol = st.sidebar.selectbox("个标（OKX InstId）", ["BTC-USDT","ETH-USDT","SOL-USDT","XRP-USDT","DOGE-USDT"], index=1)
-combo_symbols = st.sidebar.multiselect("组合标（可多选，默认留空）", ["BTC-USDT","ETH-USDT","SOL-USDT","XRP-USDT","DOGE-USDT"], default=[])
-interval = st.sidebar.selectbox("K线周期", ["1m","3m","5m","15m","30m","1H","2H","4H","6H","12H","1D","1W","1M"], index=3)
+    symbol = st.sidebar.selectbox("个标（OKX InstId）", ["BTC-USDT","ETH-USDT","SOL-USDT","XRP-USDT","DOGE-USDT"], index=1)
+    combo_symbols = st.sidebar.multiselect("组合标（可多选，默认留空）", ["BTC-USDT","ETH-USDT","SOL-USDT","XRP-USDT","DOGE-USDT"], default=[])
+    interval = st.sidebar.selectbox("K线周期", ["1m","3m","5m","15m","30m","1H","2H","4H","6H","12H","1D","1W","1M"], index=3)
 else:
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
-symbol = st.sidebar.selectbox("个标（美股/A股）", ["AAPL","TSLA","MSFT","NVDA","600519.SS","000001.SS"], index=0)
-combo_symbols = st.sidebar.multiselect("组合标（可多选，默认留空）", ["AAPL","TSLA","MSFT","NVDA","600519.SS","000001.SS"], default=[])
-interval = st.sidebar.selectbox("K线周期", ["1d","1wk","1mo"], index=0)
+    symbol = st.sidebar.selectbox("个标（美股/A股）", ["AAPL","TSLA","MSFT","NVDA","600519.SS","000001.SS"], index=0)
+    combo_symbols = st.sidebar.multiselect("组合标（可多选，默认留空）", ["AAPL","TSLA","MSFT","NVDA","600519.SS","000001.SS"], default=[])
+    interval = st.sidebar.selectbox("K线周期", ["1d","1wk","1mo"], index=0)
 
 # ========================= Sidebar: ③ 指标与参数（顶级交易员常用） =========================
 st.sidebar.header("③ 指标与参数（顶级交易员常用）")
@@ -195,23 +177,23 @@ col1, col2, col3 = st.columns([6, 1, 2])
 
 with col2:
     if st.button("🔄 刷新", use_container_width=True, key="refresh_button"):
-# 增加刷新计数器以强制刷新数据
-st.session_state.refresh_counter += 1
-# 更新刷新时间和显示状态
-st.session_state.last_refresh_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-st.session_state.show_checkmark = True
-st.session_state.force_refresh = True
-# 使用兼容性更好的方法刷新页面
-st.query_params['refresh'] = refresh=st.session_state.refresh_counter
+        # 增加刷新计数器以强制刷新数据
+        st.session_state.refresh_counter += 1
+        # 更新刷新时间和显示状态
+        st.session_state.last_refresh_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        st.session_state.show_checkmark = True
+        st.session_state.force_refresh = True
+        # 使用兼容性更好的方法刷新页面
+        st.query_params['refresh'] = refresh=st.session_state.refresh_counter
 
 # 显示刷新确认和时间
 with col3:
     if st.session_state.show_checkmark:
-
+        st.success("✅ 数据已刷新")
         if st.session_state.last_refresh_time:
-st.caption(f"最后刷新: {st.session_state.last_refresh_time}")
+            st.caption(f"最后刷新: {st.session_state.last_refresh_time}")
     elif st.session_state.last_refresh_time:
-st.caption(f"最后刷新: {st.session_state.last_refresh_time}")
+        st.caption(f"最后刷新: {st.session_state.last_refresh_time}")
 
 # ========================= Data Loaders =========================
 def _cg_days_from_interval(sel: str) -> str:
@@ -219,1349 +201,1180 @@ def _cg_days_from_interval(sel: str) -> str:
     if sel.startswith("1w"): return "365"
     if sel.startswith("1M"): return "365"
     if sel.startswith("max"): return "max"
-return "180"
+    return "180"
 
 @st.cache_data(ttl=900, hash_funcs={"_thread.RLock": lambda _: None})
 def load_coingecko_ohlc_robust(coin_id: str, interval_sel: str):
-days = _cg_days_from_interval(interval_sel)
-try:
-url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/ohlc"
-r = requests.get(url, params={"vs_currency": "usd", "days": days}, timeout=20)
+    days = _cg_days_from_interval(interval_sel)
+    try:
+        url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/ohlc"
+        r = requests.get(url, params={"vs_currency": "usd", "days": days}, timeout=20)
         if r.status_code == 200:
-arr = r.json()
+            arr = r.json()
             if isinstance(arr, list) and len(arr) > 0:
-rows = [(pd.to_datetime(x[0], unit="ms"), float(x[1]), float(x[2]), float(x[3]), float(x[4])) for x in arr]
-return pd.DataFrame(rows, columns=["Date","Open","High","Low","Close"]).set_index("Date")
-except Exception:
-pass
-try:
-url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart"
-params = {"vs_currency":"usd", "days": days if days != "max" else "365"}
-r = requests.get(url, params=params, timeout=20)
-r.raise_for_status()
-data = r.json()
-prices = data.get("prices", [])
+                rows = [(pd.to_datetime(x[0], unit="ms"), float(x[1]), float(x[2]), float(x[3]), float(x[4])) for x in arr]
+                return pd.DataFrame(rows, columns=["Date","Open","High","Low","Close"]).set_index("Date")
+    except Exception:
+        pass
+    try:
+        url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart"
+        params = {"vs_currency":"usd", "days": days if days != "max" else "365"}
+        r = requests.get(url, params=params, timeout=20)
+        r.raise_for_status()
+        data = r.json()
+        prices = data.get("prices", [])
         if prices:
-s = pd.Series(
-[float(p[1]) for p in prices],
-index=pd.to_datetime([int(p[0]) for p in prices], unit="ms"),
-name="price"
-).sort_index()
-ohlc = s.resample("1D").agg(["first","max","min","last"]).dropna()
-ohlc.columns = ["Open","High","Low","Close"]
-return ohlc
-except Exception:
-pass
-return pd.DataFrame()
+            s = pd.Series(
+                [float(p[1]) for p in prices],
+                index=pd.to_datetime([int(p[0]) for p in prices], unit="ms"),
+                name="price"
+            ).sort_index()
+            ohlc = s.resample("1D").agg(["first","max","min","last"]).dropna()
+            ohlc.columns = ["Open","High","Low","Close"]
+            return ohlc
+    except Exception:
+        pass
+    return pd.DataFrame()
 
 @st.cache_data(ttl=900, hash_funcs={"_thread.RLock": lambda _: None})
 def load_tokeninsight_ohlc(api_base_url: str, coin_id: str, interval_sel: str):
     if not api_base_url:
-return load_coingecko_ohlc_robust(coin_id, interval_sel)
-try:
-url = f"{api_base_url.rstrip('/')}/ohlc"
-r = requests.get(url, params={"symbol": coin_id, "period": "1d"}, timeout=15)
-r.raise_for_status()
-data = r.json()
+        return load_coingecko_ohlc_robust(coin_id, interval_sel)
+    try:
+        url = f"{api_base_url.rstrip('/')}/ohlc"
+        r = requests.get(url, params={"symbol": coin_id, "period": "1d"}, timeout=15)
+        r.raise_for_status()
+        data = r.json()
         if isinstance(data, list) and data:
-rows = [(pd.to_datetime(x[0], unit="ms"), float(x[1]), float(x[2]), float(x[3]), float(x[4])) for x in data]
-return pd.DataFrame(rows, columns=["Date","Open","High","Low","Close"]).set_index("Date")
-except Exception:
-pass
-return load_coingecko_ohlc_robust(coin_id, interval_sel)
+            rows = [(pd.to_datetime(x[0], unit="ms"), float(x[1]), float(x[2]), float(x[3]), float(x[4])) for x in data]
+            return pd.DataFrame(rows, columns=["Date","Open","High","Low","Close"]).set_index("Date")
+    except Exception:
+        pass
+    return load_coingecko_ohlc_robust(coin_id, interval_sel)
 
 @st.cache_data(ttl=900, hash_funcs={"_thread.RLock": lambda _: None})
 def load_okx_public(instId: str, bar: str, base_url: str = ""):
-url = (base_url.rstrip('/') if base_url else "https://www.okx.com") + "/api/v5/market/candles"
-params = {"instId": instId, "bar": bar, "limit": "1000"}
-r = requests.get(url, params=params, timeout=20)
-r.raise_for_status()
-data = r.json().get("data", [])
+    url = (base_url.rstrip('/') if base_url else "https://www.okx.com") + "/api/v5/market/candles"
+    params = {"instId": instId, "bar": bar, "limit": "1000"}
+    r = requests.get(url, params=params, timeout=20)
+    r.raise_for_status()
+    data = r.json().get("data", [])
     if not data: return pd.DataFrame()
-rows = []
+    rows = []
     for a in reversed(data):
-ts = int(a[0]); o=float(a[1]); h=float(a[2]); l=float(a[3]); c=float(a[4]); v=float(a[5])
-rows.append((pd.to_datetime(ts, unit="ms"), o,h,l,c,v))
-return pd.DataFrame(rows, columns=["Date","Open","High","Low","Close","Volume"]).set_index("Date")
+        ts = int(a[0]); o=float(a[1]); h=float(a[2]); l=float(a[3]); c=float(a[4]); v=float(a[5])
+        rows.append((pd.to_datetime(ts, unit="ms"), o,h,l,c,v))
+    return pd.DataFrame(rows, columns=["Date","Open","High","Low","Close","Volume"]).set_index("Date")
 
 @st.cache_data(ttl=900, hash_funcs={"_thread.RLock": lambda _: None})
 def load_yf(symbol: str, interval_sel: str):
-interval_map = {"1d":"1d","1wk":"1wk","1mo":"1mo"}
-interval = interval_map.get(interval_sel, "1d")
-df = yf.download(symbol, period="5y", interval=interval, progress=False, auto_adjust=False)
+    interval_map = {"1d":"1d","1wk":"1wk","1mo":"1mo"}
+    interval = interval_map.get(interval_sel, "1d")
+    df = yf.download(symbol, period="5y", interval=interval, progress=False, auto_adjust=False)
     if not df.empty:
-df = df[["Open","High","Low","Close","Volume"]].dropna()
-return df
+        df = df[["Open","High","Low","Close","Volume"]].dropna()
+    return df
 
 def load_router(source, symbol, interval_sel, api_base=""):
-# 使用refresh_counter确保每次刷新都重新加载数据
-_ = st.session_state.refresh_counter  # 确保这个函数在refresh_counter变化时重新运行
-
+    # 使用refresh_counter确保每次刷新都重新加载数据
+    _ = st.session_state.refresh_counter  # 确保这个函数在refresh_counter变化时重新运行
+    
     if source == "CoinGecko（免API）":
-return load_coingecko_ohlc_robust(symbol, interval_sel)
+        return load_coingecko_ohlc_robust(symbol, interval_sel)
     elif source == "TokenInsight API 模式（可填API基址）":
-return load_tokeninsight_ohlc(api_base, symbol, interval_sel)
+        return load_tokeninsight_ohlc(api_base, symbol, interval_sel)
     elif source in ["OKX 公共行情（免API）", "OKX API（可填API基址）"]:
-base = api_base if source == "OKX API（可填API基址）" else ""
-return load_okx_public(symbol, interval_sel, base_url=base)
+        base = api_base if source == "OKX API（可填API基址）" else ""
+        return load_okx_public(symbol, interval_sel, base_url=base)
     else:
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
-return load_yf(symbol, interval_sel)
+        return load_yf(symbol, interval_sel)
 
 # 加载数据
 df = load_router(source, symbol, interval, api_base)
 if df.empty or not set(["Open","High","Low","Close"]).issubset(df.columns):
-st.error("数据为空或字段缺失：请更换数据源/周期，或稍后重试（免费源可能限流）。")
-st.stop()
+    st.error("数据为空或字段缺失：请更换数据源/周期，或稍后重试（免费源可能限流）。")
+    st.stop()
 
 # ========================= Indicators =========================
 def parse_int_list(text):
-try:
-lst = [int(x.strip()) for x in text.split(",") if x.strip()]
-return [x for x in lst if x > 0]
-except Exception:
-return []
+    try:
+        lst = [int(x.strip()) for x in text.split(",") if x.strip()]
+        return [x for x in lst if x > 0]
+    except Exception:
+        return []
 
 def add_indicators(df):
-out = df.copy()
-close, high, low = out["Close"], out["High"], out["Low"]
-vol = out["Volume"] if "Volume" in out.columns else pd.Series(np.nan, index=out.index, name="Volume")
+    out = df.copy()
+    close, high, low = out["Close"], out["High"], out["Low"]
+    vol = out["Volume"] if "Volume" in out.columns else pd.Series(np.nan, index=out.index, name="Volume")
     if "Volume" not in out.columns: out["Volume"] = np.nan
 
-# MA / EMA
+    # MA / EMA
     if use_ma:
         for p in parse_int_list(ma_periods_text):
-out[f"MA{p}"] = close.rolling(p).mean()
+            out[f"MA{p}"] = close.rolling(p).mean()
     if use_ema:
         for p in parse_int_list(ema_periods_text):
-out[f"EMA{p}"] = close.ewm(span=p).mean()
+            out[f"EMA{p}"] = close.ewm(span=p).mean()
 
-# Bollinger
+    # Bollinger
     if use_boll:
-boll = ta.volatility.BollingerBands(close=close, window=int(boll_window), window_dev=float(boll_std))
-out["BOLL_M"], out["BOLL_U"], out["BOLL_L"] = boll.bollinger_mavg(), boll.bollinger_hband(), boll.bollinger_lband()
+        boll = ta.volatility.BollingerBands(close=close, window=int(boll_window), window_dev=float(boll_std))
+        out["BOLL_M"], out["BOLL_U"], out["BOLL_L"] = boll.bollinger_mavg(), boll.bollinger_hband(), boll.bollinger_lband()
 
-# MACD
+    # MACD
     if use_macd:
-macd_ind = ta.trend.MACD(close, window_slow=int(macd_slow), window_fast=int(macd_fast), window_sign=int(macd_sig))
-out["MACD"], out["MACD_signal"], out["MACD_hist"] = macd_ind.macd(), macd_ind.macd_signal(), macd_ind.macd_diff()
+        macd_ind = ta.trend.MACD(close, window_slow=int(macd_slow), window_fast=int(macd_fast), window_sign=int(macd_sig))
+        out["MACD"], out["MACD_signal"], out["MACD_hist"] = macd_ind.macd(), macd_ind.macd_signal(), macd_ind.macd_diff()
 
-# RSI
+    # RSI
     if use_rsi: out["RSI"] = ta.momentum.RSIIndicator(close, window=int(rsi_window)).rsi()
 
-# ATR
+    # ATR
     if use_atr: out["ATR"] = ta.volatility.AverageTrueRange(high, low, close, window=int(atr_window)).average_true_range()
 
-# ===== 新增指标 =====
+    # ===== 新增指标 =====
     if use_vwap:
-# 修复 VWAP 计算
-typical_price = (high + low + close) / 3
-vwap = (typical_price * vol).cumsum() / vol.cumsum()
-out["VWAP"] = vwap
+        # 修复 VWAP 计算
+        typical_price = (high + low + close) / 3
+        vwap = (typical_price * vol).cumsum() / vol.cumsum()
+        out["VWAP"] = vwap
     if use_adx:
-adx_ind = ta.trend.ADXIndicator(high=high, low=low, close=close, window=int(adx_window))
-out["ADX"] = adx_ind.adx()
-out["DIP"] = adx_ind.adx_pos()
-out["DIN"] = adx_ind.adx_neg()
+        adx_ind = ta.trend.ADXIndicator(high=high, low=low, close=close, window=int(adx_window))
+        out["ADX"] = adx_ind.adx()
+        out["DIP"] = adx_ind.adx_pos()
+        out["DIN"] = adx_ind.adx_neg()
     if use_stoch:
-stoch = ta.momentum.StochasticOscillator(high=high, low=low, close=close, window=int(stoch_k), smooth_window=int(stoch_smooth))
-out["STOCH_K"] = stoch.stoch()
-out["STOCH_D"] = stoch.stoch_signal() if hasattr(stoch, "stoch_signal") else out["STOCH_K"].rolling(int(stoch_d)).mean()
+        stoch = ta.momentum.StochasticOscillator(high=high, low=low, close=close, window=int(stoch_k), smooth_window=int(stoch_smooth))
+        out["STOCH_K"] = stoch.stoch()
+        out["STOCH_D"] = stoch.stoch_signal() if hasattr(stoch, "stoch_signal") else out["STOCH_K"].rolling(int(stoch_d)).mean()
     if use_stochrsi:
-srsi = ta.momentum.StochRSIIndicator(close=close, window=int(stochrsi_window))
-out["StochRSI_K"] = srsi.stochrsi_k()
-out["StochRSI_D"] = srsi.stochrsi_d()
+        srsi = ta.momentum.StochRSIIndicator(close=close, window=int(stochrsi_window))
+        out["StochRSI_K"] = srsi.stochrsi_k()
+        out["StochRSI_D"] = srsi.stochrsi_d()
     if use_mfi:
-mfi = ta.volume.MFIIndicator(high=high, low=low, close=close, volume=vol, window=int(mfi_window))
-out["MFI"] = mfi.money_flow_index()
+        mfi = ta.volume.MFIIndicator(high=high, low=low, close=close, volume=vol, window=int(mfi_window))
+        out["MFI"] = mfi.money_flow_index()
     if use_cci:
-cci = ta.trend.CCIIndicator(high=high, low=low, close=close, window=int(cci_window))
-out["CCI"] = cci.cci()
+        cci = ta.trend.CCIIndicator(high=high, low=low, close=close, window=int(cci_window))
+        out["CCI"] = cci.cci()
     if use_obv:
-obv = ta.volume.OnBalanceVolumeIndicator(close=close, volume=vol)
-out["OBV"] = obv.on_balance_volume()
+        obv = ta.volume.OnBalanceVolumeIndicator(close=close, volume=vol)
+        out["OBV"] = obv.on_balance_volume()
     if use_psar:
-try:
-ps = ta.trend.PSARIndicator(high=high, low=low, close=close, step=float(psar_step), max_step=float(psar_max_step))
-out["PSAR"] = ps.psar()
-except Exception:
-out["PSAR"] = np.nan
-
-# ===== 新增KDJ指标 =====
+        try:
+            ps = ta.trend.PSARIndicator(high=high, low=low, close=close, step=float(psar_step), max_step=float(psar_max_step))
+            out["PSAR"] = ps.psar()
+        except Exception:
+            out["PSAR"] = np.nan
+            
+    # ===== 新增KDJ指标 =====
     if use_kdj:
-# 计算KDJ指标
-low_min = low.rolling(window=int(kdj_window)).min()
-high_max = high.rolling(window=int(kdj_window)).max()
-rsv = (close - low_min) / (high_max - low_min) * 100
-out["KDJ_K"] = rsv.rolling(window=int(kdj_smooth_k)).mean()
-out["KDJ_D"] = out["KDJ_K"].rolling(window=int(kdj_smooth_d)).mean()
-out["KDJ_J"] = 3 * out["KDJ_K"] - 2 * out["KDJ_D"]
+        # 计算KDJ指标
+        low_min = low.rolling(window=int(kdj_window)).min()
+        high_max = high.rolling(window=int(kdj_window)).max()
+        rsv = (close - low_min) / (high_max - low_min) * 100
+        out["KDJ_K"] = rsv.rolling(window=int(kdj_smooth_k)).mean()
+        out["KDJ_D"] = out["KDJ_K"].rolling(window=int(kdj_smooth_d)).mean()
+        out["KDJ_J"] = 3 * out["KDJ_K"] - 2 * out["KDJ_D"]
 
-return out
+    return out
 
 dfi = add_indicators(df).dropna(how="all")
 
 # ========================= 信号检测函数 =========================
 def detect_signals(df):
-"""检测各种交易信号"""
-signals = pd.DataFrame(index=df.index)
-
-# ==== Signal Logic for Long/Short ====
-descriptions = []
-long_signals = []
-short_signals = []
-for ind in indicators:
-    if ind == "RSI":
-descriptions.append(f"RSI<{30} 超卖；RSI>{70} 超买")
-        if rsi_value < 30:
-long_signals.append("✅")
-short_signals.append("")
-        elif rsi_value > 70:
-long_signals.append("")
-short_signals.append("✅")
-        else:
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
-long_signals.append("")
-short_signals.append("")
-    elif ind == "MACD":
-descriptions.append("MACD金叉看多；死叉看空")
-        if macd_hist > 0 and macd_hist_prev <= 0:
-long_signals.append("✅")
-short_signals.append("")
-        elif macd_hist < 0 and macd_hist_prev >= 0:
-long_signals.append("")
-short_signals.append("✅")
-        else:
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
-long_signals.append("")
-short_signals.append("")
-    elif ind == "MA":
-descriptions.append("均线金叉看多；死叉看空")
-        if ma_short_val > ma_long_val:
-long_signals.append("✅")
-short_signals.append("")
-        elif ma_short_val < ma_long_val:
-long_signals.append("")
-short_signals.append("✅")
-        else:
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
-long_signals.append("")
-short_signals.append("")
-    elif ind == "ADX":
-descriptions.append("ADX>20 且 +DI>-DI 看多；-DI>+DI 看空")
-        if adx_val > 20 and plus_di > minus_di:
-long_signals.append("✅")
-short_signals.append("")
-        elif adx_val > 20 and minus_di > plus_di:
-long_signals.append("")
-short_signals.append("✅")
-        else:
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
-long_signals.append("")
-short_signals.append("")
-    elif ind == "Fibonacci":
-descriptions.append("回调到0.382-0.618 看多；反弹到0.618-0.786 看空")
-        if fib_long_signal:
-long_signals.append("✅")
-short_signals.append("")
-        elif fib_short_signal:
-long_signals.append("")
-short_signals.append("✅")
-        else:
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
-long_signals.append("")
-short_signals.append("")
-    else:
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
-
-# MA交叉信号
+    """检测各种交易信号"""
+    signals = pd.DataFrame(index=df.index)
+long_signals = signals  # ✅ 做多信号列表
+short_signals = ["✅" if s=="" else "" for s in signals]  # ✅ 简单示例：做空与做多相反，可根据实际逻辑调整
+    
+    # MA交叉信号
     if "MA20" in df.columns and "MA50" in df.columns:
-signals["MA_Cross"] = np.where(
-(df["MA20"] > df["MA50"]) & (df["MA20"].shift(1) <= df["MA50"].shift(1)),
-"Buy",
-np.where(
-(df["MA20"] < df["MA50"]) & (df["MA20"].shift(1) >= df["MA50"].shift(1)),
-"Sell",
-None
-)
-)
-
-# MACD信号
+        signals["MA_Cross"] = np.where(
+            (df["MA20"] > df["MA50"]) & (df["MA20"].shift(1) <= df["MA50"].shift(1)), 
+            "Buy", 
+            np.where(
+                (df["MA20"] < df["MA50"]) & (df["MA20"].shift(1) >= df["MA50"].shift(1)), 
+                "Sell", 
+                None
+            )
+        )
+    
+    # MACD信号
     if all(c in df.columns for c in ["MACD","MACD_signal"]):
-signals["MACD_Cross"] = np.where(
-(df["MACD"] > df["MACD_signal"]) & (df["MACD"].shift(1) <= df["MACD_signal"].shift(1)),
-"Buy",
-np.where(
-(df["MACD"] < df["MACD_signal"]) & (df["MACD"].shift(1) >= df["MACD_signal"].shift(1)),
-"Sell",
-None
-)
-)
-
-# RSI超买超卖信号
+        signals["MACD_Cross"] = np.where(
+            (df["MACD"] > df["MACD_signal"]) & (df["MACD"].shift(1) <= df["MACD_signal"].shift(1)), 
+            "Buy", 
+            np.where(
+                (df["MACD"] < df["MACD_signal"]) & (df["MACD"].shift(1) >= df["MACD_signal"].shift(1)), 
+                "Sell", 
+                None
+            )
+        )
+    
+    # RSI超买超卖信号
     if "RSI" in df.columns:
-signals["RSI_Overbought"] = np.where(df["RSI"] > 70, "Sell", None)
-signals["RSI_Oversold"] = np.where(df["RSI"] < 30, "Buy", None)
-
-# KDJ信号
+        signals["RSI_Overbought"] = np.where(df["RSI"] > 70, "Sell", None)
+        signals["RSI_Oversold"] = np.where(df["RSI"] < 30, "Buy", None)
+    
+    # KDJ信号
     if all(c in df.columns for c in ["KDJ_K","KDJ_D"]):
-signals["KDJ_Cross"] = np.where(
-(df["KDJ_K"] > df["KDJ_D"]) & (df["KDJ_K"].shift(1) <= df["KDJ_D"].shift(1)),
-"Buy",
-np.where(
-(df["KDJ_K"] < df["KDJ_D"]) & (df["KDJ_K"].shift(1) >= df["KDJ_D"].shift(1)),
-"Sell",
-None
-)
-)
-signals["KDJ_Overbought"] = np.where(df["KDJ_K"] > 80, "Sell", None)
-signals["KDJ_Oversold"] = np.where(df["KDJ_K"] < 20, "Buy", None)
-
-return signals
+        signals["KDJ_Cross"] = np.where(
+            (df["KDJ_K"] > df["KDJ_D"]) & (df["KDJ_K"].shift(1) <= df["KDJ_D"].shift(1)), 
+            "Buy", 
+            np.where(
+                (df["KDJ_K"] < df["KDJ_D"]) & (df["KDJ_K"].shift(1) >= df["KDJ_D"].shift(1)), 
+                "Sell", 
+                None
+            )
+        )
+        signals["KDJ_Overbought"] = np.where(df["KDJ_K"] > 80, "Sell", None)
+        signals["KDJ_Oversold"] = np.where(df["KDJ_K"] < 20, "Buy", None)
+    
+    return signals
 
 # 检测信号
 signals = detect_signals(dfi)
 
 # ========================= 支撑阻力计算 =========================
 def calculate_support_resistance(df, window=20):
-"""计算支撑和阻力位"""
-# 近期高点和低点
-recent_high = df["High"].rolling(window=window).max()
-recent_low = df["Low"].rolling(window=window).min()
-
-# 使用布林带作为动态支撑阻力
+    """计算支撑和阻力位"""
+    # 近期高点和低点
+    recent_high = df["High"].rolling(window=window).max()
+    recent_low = df["Low"].rolling(window=window).min()
+    
+    # 使用布林带作为动态支撑阻力
     if "BOLL_U" in df.columns and "BOLL_L" in df.columns:
-resistance = df["BOLL_U"]
-support = df["BOLL_L"]
+        resistance = df["BOLL_U"]
+        support = df["BOLL_L"]
     else:
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
-# 如果没有布林带，使用近期高点和低点
-resistance = recent_high
-support = recent_low
-
-return support, resistance
+        # 如果没有布林带，使用近期高点和低点
+        resistance = recent_high
+        support = recent_low
+    
+    return support, resistance
 
 support, resistance = calculate_support_resistance(dfi)
 
 if page_clean == "K线图":
-# ========================= TradingView 风格图表 =========================
-st.subheader(f"🕯️ K线（{symbol} / {source} / {interval}）")
-fig = go.Figure()
-# --- Build hovertext for candlestick (keep original precision) ---
-try:
-# choose volume column
-volume_col = None
+    # ========================= TradingView 风格图表 =========================
+    st.subheader(f"🕯️ K线（{symbol} / {source} / {interval}）")
+    fig = go.Figure()
+    # --- Build hovertext for candlestick (keep original precision) ---
+    try:
+        # choose volume column
+        volume_col = None
         for _cand in ["Volume","volume","vol","Vol","amt"]:
             if _cand in dfi.columns:
-volume_col = _cand
-break
+                volume_col = _cand
+                break
         if volume_col is None:
-dfi["_VolumeForHover"] = 0.0
-volume_col = "_VolumeForHover"
-
-# Signal column optional
-_has_signal = "Signal" in dfi.columns
-_time_str = dfi.index.astype(str)
-dfi["hovertext"] = (
-"Time: " + _time_str +
-"<br>Open: " + dfi["Open"].astype(str) +
-"<br>High: " + dfi["High"].astype(str) +
-"<br>Low: " + dfi["Low"].astype(str) +
-"<br>Close: " + dfi["Close"].astype(str) +
-"<br>Volume: " + dfi[volume_col].astype(str)
-)
+            dfi["_VolumeForHover"] = 0.0
+            volume_col = "_VolumeForHover"
+    
+        # Signal column optional
+        _has_signal = "Signal" in dfi.columns
+        _time_str = dfi.index.astype(str)
+        dfi["hovertext"] = (
+            "Time: " + _time_str +
+            "<br>Open: " + dfi["Open"].astype(str) +
+            "<br>High: " + dfi["High"].astype(str) +
+            "<br>Low: " + dfi["Low"].astype(str) +
+            "<br>Close: " + dfi["Close"].astype(str) +
+            "<br>Volume: " + dfi[volume_col].astype(str)
+        )
         if _has_signal:
-dfi["hovertext"] = dfi["hovertext"] + "<br>Signal: " + dfi["Signal"].astype(str)
-except Exception as _e:
-# fallback: minimal hovertext
-dfi["hovertext"] = "Time: " + dfi.index.astype(str)
-
-# --- Determine volume column for hover ---
-volume_col = None
+            dfi["hovertext"] = dfi["hovertext"] + "<br>Signal: " + dfi["Signal"].astype(str)
+    except Exception as _e:
+        # fallback: minimal hovertext
+        dfi["hovertext"] = "Time: " + dfi.index.astype(str)
+    
+    # --- Determine volume column for hover ---
+    volume_col = None
     for cand in ["Volume", "volume", "vol", "Vol", "amt"]:
         if cand in dfi.columns:
-volume_col = cand
-break
+            volume_col = cand
+            break
     if volume_col is None:
-dfi["_VolumeForHover"] = 0.0
-volume_col = "_VolumeForHover"
-
-fig.add_trace(
-go.Candlestick(x=dfi.index,
-open=dfi["Open"],
-high=dfi["High"],
-low=dfi["Low"],
-close=dfi["Close"],
-name="K线",
-
-)
-)
-
-
-# 添加均线 - 默认隐藏
+        dfi["_VolumeForHover"] = 0.0
+        volume_col = "_VolumeForHover"
+    
+    fig.add_trace(
+        go.Candlestick(x=dfi.index,
+            open=dfi["Open"],
+            high=dfi["High"],
+            low=dfi["Low"],
+            close=dfi["Close"],
+            name="K线",
+            
+            )
+    )
+    
+    
+    # 添加均线 - 默认隐藏
     if use_ma:
-ma_colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"]
+        ma_colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"]
         for i, p in enumerate(parse_int_list(ma_periods_text)):
-col = f"MA{p}"
+            col = f"MA{p}"
             if col in dfi.columns: 
-fig.add_trace(go.Scatter(
-x=dfi.index,
-y=dfi[col],
-mode="lines",
-name=col,
-yaxis="y",
-line=dict(color=ma_colors[i % len(ma_colors)]),
-visible="legendonly"  # 默认隐藏
-))
-
+                fig.add_trace(go.Scatter(
+                    x=dfi.index, 
+                    y=dfi[col], 
+                    mode="lines", 
+                    name=col, 
+                    yaxis="y",
+                    line=dict(color=ma_colors[i % len(ma_colors)]),
+                    visible="legendonly"  # 默认隐藏
+                ))
+    
     if use_ema:
-ema_colors = ["#3366cc", "#dc3912", "#ff9900", "#109618", "#990099", "#0099c6", "#dd4477", "#66aa00", "#b82e2e", "#316395"]
+        ema_colors = ["#3366cc", "#dc3912", "#ff9900", "#109618", "#990099", "#0099c6", "#dd4477", "#66aa00", "#b82e2e", "#316395"]
         for i, p in enumerate(parse_int_list(ema_periods_text)):
-col = f"EMA{p}"
+            col = f"EMA{p}"
             if col in dfi.columns: 
-fig.add_trace(go.Scatter(
-x=dfi.index,
-y=dfi[col],
-mode="lines",
-name=col,
-yaxis="y",
-line=dict(color=ema_colors[i % len(ema_colors)]),
-visible="legendonly"  # 默认隐藏
-))
-
+                fig.add_trace(go.Scatter(
+                    x=dfi.index, 
+                    y=dfi[col], 
+                    mode="lines", 
+                    name=col, 
+                    yaxis="y",
+                    line=dict(color=ema_colors[i % len(ema_colors)]),
+                    visible="legendonly"  # 默认隐藏
+                ))
+    
     if use_boll:
-boll_colors = ["#3d9970", "#ff4136", "#85144b"]
+        boll_colors = ["#3d9970", "#ff4136", "#85144b"]
         for i, (col, nm) in enumerate([("BOLL_U","BOLL 上轨"),("BOLL_M","BOLL 中轨"),("BOLL_L","BOLL 下轨")]):
             if col in dfi.columns: 
-fig.add_trace(go.Scatter(
-x=dfi.index,
-y=dfi[col],
-mode="lines",
-name=nm,
-yaxis="y",
-line=dict(color=boll_colors[i % len(boll_colors)]),
-visible="legendonly"  # 默认隐藏
-))
-
-# 添加支撑阻力线 - 默认隐藏
-fig.add_trace(go.Scatter(
-x=dfi.index,
-y=support,
-mode="lines",
-name="支撑",
-line=dict(color="#00cc96", dash="dash"),
-yaxis="y",
-visible="legendonly"  # 默认隐藏
-))
-fig.add_trace(go.Scatter(
-x=dfi.index,
-y=resistance,
-mode="lines",
-name="阻力",
-line=dict(color="#ef553b", dash="dash"),
-yaxis="y",
-visible="legendonly"  # 默认隐藏
-))
-
-# 添加买卖信号 - 默认隐藏
-buy_signals = signals[signals.isin(["Buy"]).any(axis=1)]
-sell_signals = signals[signals.isin(["Sell"]).any(axis=1)]
-
+                fig.add_trace(go.Scatter(
+                    x=dfi.index, 
+                    y=dfi[col], 
+                    mode="lines", 
+                    name=nm, 
+                    yaxis="y",
+                    line=dict(color=boll_colors[i % len(boll_colors)]),
+                    visible="legendonly"  # 默认隐藏
+                ))
+    
+    # 添加支撑阻力线 - 默认隐藏
+    fig.add_trace(go.Scatter(
+        x=dfi.index, 
+        y=support, 
+        mode="lines", 
+        name="支撑", 
+        line=dict(color="#00cc96", dash="dash"), 
+        yaxis="y",
+        visible="legendonly"  # 默认隐藏
+    ))
+    fig.add_trace(go.Scatter(
+        x=dfi.index, 
+        y=resistance, 
+        mode="lines", 
+        name="阻力", 
+        line=dict(color="#ef553b", dash="dash"), 
+        yaxis="y",
+        visible="legendonly"  # 默认隐藏
+    ))
+    
+    # 添加买卖信号 - 默认隐藏
+    buy_signals = signals[signals.isin(["Buy"]).any(axis=1)]
+    sell_signals = signals[signals.isin(["Sell"]).any(axis=1)]
+    
     if not buy_signals.empty:
-buy_points = dfi.loc[buy_signals.index]
-fig.add_trace(go.Scatter(
-x=buy_points.index,
-y=buy_points["Low"] * 0.99,
-mode="markers",
-name="买入信号",
-marker=dict(symbol="triangle-up", size=10, color="#00cc96"),
-visible="legendonly"  # 默认隐藏
-))
-
+        buy_points = dfi.loc[buy_signals.index]
+        fig.add_trace(go.Scatter(
+            x=buy_points.index, 
+            y=buy_points["Low"] * 0.99, 
+            mode="markers", 
+            name="买入信号",
+            marker=dict(symbol="triangle-up", size=10, color="#00cc96"),
+            visible="legendonly"  # 默认隐藏
+        ))
+    
     if not sell_signals.empty:
-sell_points = dfi.loc[sell_signals.index]
-fig.add_trace(go.Scatter(
-x=sell_points.index,
-y=sell_points["High"] * 1.01,
-mode="markers",
-name="卖出信号",
-marker=dict(symbol="triangle-down", size=10, color="#ef553b"),
-visible="legendonly"  # 默认隐藏
-))
-
-# 添加成交量 - 默认显示
-vol_colors = np.where(dfi["Close"] >= dfi["Open"], "rgba(38,166,91,0.7)", "rgba(239,83,80,0.7)")
+        sell_points = dfi.loc[sell_signals.index]
+        fig.add_trace(go.Scatter(
+            x=sell_points.index, 
+            y=sell_points["High"] * 1.01, 
+            mode="markers", 
+            name="卖出信号",
+            marker=dict(symbol="triangle-down", size=10, color="#ef553b"),
+            visible="legendonly"  # 默认隐藏
+        ))
+    
+    # 添加成交量 - 默认显示
+    vol_colors = np.where(dfi["Close"] >= dfi["Open"], "rgba(38,166,91,0.7)", "rgba(239,83,80,0.7)")
     if "Volume" in dfi.columns and not dfi["Volume"].isna().all():
-fig.add_trace(go.Bar(
-x=dfi.index,
-y=dfi["Volume"],
-name="成交量",
-yaxis="y2",
-marker_color=vol_colors,
-opacity=0.7
-))
-
-# 添加MACD副图 - 默认显示
+        fig.add_trace(go.Bar(
+            x=dfi.index, 
+            y=dfi["Volume"], 
+            name="成交量", 
+            yaxis="y2", 
+            marker_color=vol_colors,
+            opacity=0.7
+        ))
+    
+    # 添加MACD副图 - 默认显示
     if use_macd and all(c in dfi.columns for c in ["MACD","MACD_signal","MACD_hist"]):
-fig.add_trace(go.Scatter(
-x=dfi.index,
-y=dfi["MACD"],
-name="MACD",
-yaxis="y3",
-mode="lines",
-line=dict(color="#3366cc")
-))
-fig.add_trace(go.Scatter(
-x=dfi.index,
-y=dfi["MACD_signal"],
-name="Signal",
-yaxis="y3",
-mode="lines",
-line=dict(color="#ff9900")
-))
-fig.add_trace(go.Bar(
-x=dfi.index,
-y=dfi["MACD_hist"],
-name="MACD 柱",
-yaxis="y3",
-opacity=0.4,
-marker_color=np.where(dfi["MACD_hist"] >= 0, "#00cc96", "#ef553b")
-))
-
-# 添加RSI副图 - 默认隐藏
+        fig.add_trace(go.Scatter(
+            x=dfi.index, 
+            y=dfi["MACD"], 
+            name="MACD", 
+            yaxis="y3", 
+            mode="lines",
+            line=dict(color="#3366cc")
+        ))
+        fig.add_trace(go.Scatter(
+            x=dfi.index, 
+            y=dfi["MACD_signal"], 
+            name="Signal", 
+            yaxis="y3", 
+            mode="lines",
+            line=dict(color="#ff9900")
+        ))
+        fig.add_trace(go.Bar(
+            x=dfi.index, 
+            y=dfi["MACD_hist"], 
+            name="MACD 柱", 
+            yaxis="y3", 
+            opacity=0.4,
+            marker_color=np.where(dfi["MACD_hist"] >= 0, "#00cc96", "#ef553b")
+        ))
+    
+    # 添加RSI副图 - 默认隐藏
     if use_rsi and "RSI" in dfi.columns:
-fig.add_trace(go.Scatter(
-x=dfi.index,
-y=dfi["RSI"],
-name="RSI",
-yaxis="y4",
-mode="lines",
-line=dict(color="#17becf")
-))
-# 添加RSI超买超卖线
-fig.add_hline(y=70, line_dash="dash", line_color="red", yref="y4", opacity=0.5)
-fig.add_hline(y=30, line_dash="dash", line_color="green", yref="y4", opacity=0.5)
-
-# 添加KDJ副图 - 默认隐藏
+        fig.add_trace(go.Scatter(
+            x=dfi.index, 
+            y=dfi["RSI"], 
+            name="RSI", 
+            yaxis="y4", 
+            mode="lines",
+            line=dict(color="#17becf")
+        ))
+        # 添加RSI超买超卖线
+        fig.add_hline(y=70, line_dash="dash", line_color="red", yref="y4", opacity=0.5)
+        fig.add_hline(y=30, line_dash="dash", line_color="green", yref="y4", opacity=0.5)
+    
+    # 添加KDJ副图 - 默认隐藏
     if use_kdj and all(c in dfi.columns for c in ["KDJ_K","KDJ_D","KDJ_J"]):
-fig.add_trace(go.Scatter(
-x=dfi.index,
-y=dfi["KDJ_K"],
-name="KDJ_K",
-yaxis="y5",
-mode="lines",
-line=dict(color="#ff7f0e")# 默认隐藏
-))
-fig.add_trace(go.Scatter(
-x=dfi.index,
-y=dfi["KDJ_D"],
-name="KDJ_D",
-yaxis="y5",
-mode="lines",
-line=dict(color="#1f77b4")# 默认隐藏
-))
-fig.add_trace(go.Scatter(
-x=dfi.index,
-y=dfi["KDJ_J"],
-name="KDJ_J",
-yaxis="y5",
-mode="lines",
-line=dict(color="#2ca02c")# 默认隐藏
-))
-# 添加KDJ超买超卖线
-fig.add_hline(y=80, line_dash="dash", line_color="red", yref="y5", opacity=0.5)
-fig.add_hline(y=20, line_dash="dash", line_color="green", yref="y5", opacity=0.5)
-
-# 更新图表布局
-# ===== 斐波那契回撤（默认隐藏，图例中点击开启；组点击=全显/全隐） =====
-# 侧边栏设置：自动/手动 以及lookback
+        fig.add_trace(go.Scatter(
+            x=dfi.index, 
+            y=dfi["KDJ_K"], 
+            name="KDJ_K", 
+            yaxis="y5", 
+            mode="lines",
+            line=dict(color="#ff7f0e")# 默认隐藏
+        ))
+        fig.add_trace(go.Scatter(
+            x=dfi.index, 
+            y=dfi["KDJ_D"], 
+            name="KDJ_D", 
+            yaxis="y5", 
+            mode="lines",
+            line=dict(color="#1f77b4")# 默认隐藏
+        ))
+        fig.add_trace(go.Scatter(
+            x=dfi.index, 
+            y=dfi["KDJ_J"], 
+            name="KDJ_J", 
+            yaxis="y5", 
+            mode="lines",
+            line=dict(color="#2ca02c")# 默认隐藏
+        ))
+        # 添加KDJ超买超卖线
+        fig.add_hline(y=80, line_dash="dash", line_color="red", yref="y5", opacity=0.5)
+        fig.add_hline(y=20, line_dash="dash", line_color="green", yref="y5", opacity=0.5)
+    
+    # 更新图表布局
+    # ===== 斐波那契回撤（默认隐藏，图例中点击开启；组点击=全显/全隐） =====
+    # 侧边栏设置：自动/手动 以及lookback
     with st.sidebar.expander("⚙️ 斐波那契设置", expanded=False):
-use_auto_fib = st.checkbox("自动高低点（最近N根K线）", value=True, key="auto_fib")
-lookback = st.number_input("N（最近N根K线）", min_value=20, max_value=2000, value=100, step=10, key="fib_lookback")
+        use_auto_fib = st.checkbox("自动高低点（最近N根K线）", value=True, key="auto_fib")
+        lookback = st.number_input("N（最近N根K线）", min_value=20, max_value=2000, value=100, step=10, key="fib_lookback")
         if not use_auto_fib:
-fib_high = st.number_input("自定义高点", min_value=0.0, value=float(dfi["High"].max()), key="fib_high")
-fib_low = st.number_input("自定义低点", min_value=0.0, value=float(dfi["Low"].min()), key="fib_low")
+            fib_high = st.number_input("自定义高点", min_value=0.0, value=float(dfi["High"].max()), key="fib_high")
+            fib_low = st.number_input("自定义低点", min_value=0.0, value=float(dfi["Low"].min()), key="fib_low")
         else:
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
-sub_df = dfi.tail(int(lookback))
-fib_high = float(sub_df["High"].max())
-fib_low = float(sub_df["Low"].min())
+            sub_df = dfi.tail(int(lookback))
+            fib_high = float(sub_df["High"].max())
+            fib_low = float(sub_df["Low"].min())
 
-# 始终添加（legendonly）以便在图例点击开启
-levels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1]
-first = True
+    # 始终添加（legendonly）以便在图例点击开启
+    levels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1]
+    first = True
     for lvl in levels:
-price = fib_high - (fib_high - fib_low) * lvl
-fig.add_trace(
-go.Scatter(
-x=[dfi.index[0], dfi.index[-1]],
-y=[price, price],
-mode="lines",
-name=f"Fibonacci {lvl*100:.1f}%",
-line=dict(dash="dot"),
-visible="legendonly",
-legendgroup="Fibonacci",
-showlegend=first,
-legendgrouptitle_text="Fibonacci"
-),
-# 主图轴
-)
-first = False
+        price = fib_high - (fib_high - fib_low) * lvl
+        fig.add_trace(
+            go.Scatter(
+                x=[dfi.index[0], dfi.index[-1]],
+                y=[price, price],
+                mode="lines",
+                name=f"Fibonacci {lvl*100:.1f}%",
+                line=dict(dash="dot"),
+                visible="legendonly",
+                legendgroup="Fibonacci",
+                showlegend=first,
+                legendgrouptitle_text="Fibonacci"
+            ),
+            # 主图轴
+        )
+        first = False
 
-# 组点击行为：点击一个成员即可全显/全隐
-fig.update_layout(legend=dict(groupclick="togglegroup"))
-
-fig.update_layout(
-hovermode='x unified',
-xaxis=dict(showspikes=True, spikemode='across', spikesnap='cursor', showline=True),
-yaxis=dict(showspikes=True, spikemode='across', spikesnap='cursor', showline=True),
-xaxis_rangeslider_visible=False,
-height=1000,
-dragmode="pan",
-yaxis2=dict(domain=[0.45, 0.57], title="成交量", showgrid=False),
-yaxis3=dict(domain=[0.25, 0.44], title="MACD", showgrid=False),
-yaxis4=dict(domain=[0.15, 0.24], title="RSI", showgrid=False, range=[0,100]),
-yaxis5=dict(domain=[0.0, 0.14], title="KDJ", showgrid=False, range=[0,100]),
-modebar_add=["drawline","drawopenpath","drawclosedpath","drawcircle","drawrect","eraseshape"],
-legend=dict(
-orientation="h",
-yanchor="bottom",
-y=1.02,
-xanchor="right",
-x=1
-)
-,
-uirevision='constant'
-)
-st.plotly_chart(fig, use_container_width=True, config={
-"scrollZoom": True,
-"displayModeBar": True,
-"displaylogo": False
-})
-
+    # 组点击行为：点击一个成员即可全显/全隐
+    fig.update_layout(legend=dict(groupclick="togglegroup"))
+    
+    fig.update_layout(
+        hovermode='x unified',
+        xaxis=dict(showspikes=True, spikemode='across', spikesnap='cursor', showline=True),
+        yaxis=dict(showspikes=True, spikemode='across', spikesnap='cursor', showline=True),
+        xaxis_rangeslider_visible=False,
+        height=1000,
+        dragmode="pan",
+        yaxis2=dict(domain=[0.45, 0.57], title="成交量", showgrid=False),
+        yaxis3=dict(domain=[0.25, 0.44], title="MACD", showgrid=False),
+        yaxis4=dict(domain=[0.15, 0.24], title="RSI", showgrid=False, range=[0,100]),
+        yaxis5=dict(domain=[0.0, 0.14], title="KDJ", showgrid=False, range=[0,100]),
+        modebar_add=["drawline","drawopenpath","drawclosedpath","drawcircle","drawrect","eraseshape"],
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        )
+    ,
+        uirevision='constant'
+    )
+    st.plotly_chart(fig, use_container_width=True, config={
+        "scrollZoom": True,
+        "displayModeBar": True,
+        "displaylogo": False
+    })
+    
 if page_clean == "策略":
-# ========================= 实时策略建议（增强版） =========================
-st.markdown("---")
-st.subheader("🧭 实时策略建议（非投资建议）")
+    # ========================= 实时策略建议（增强版） =========================
+    st.markdown("---")
+    st.subheader("🧭 实时策略建议（非投资建议）")
 
-# === 新增：做多/做空评分 + ADX趋势强度 + 斐波那契盈亏比 + 诱多/诱空概率 + 指标打勾清单 ===
-# 取最新一根K线数据
-last = dfi.dropna().iloc[-1]
-price = float(last["Close"])
-high = float(last["High"])
-low = float(last["Low"])
-
-# ---------- 指标快照（安全获取） ----------
+    # === 新增：做多/做空评分 + ADX趋势强度 + 斐波那契盈亏比 + 诱多/诱空概率 + 指标打勾清单 ===
+    # 取最新一根K线数据
+    last = dfi.dropna().iloc[-1]
+    price = float(last["Close"])
+    high = float(last["High"])
+    low = float(last["Low"])
+    
+    # ---------- 指标快照（安全获取） ----------
     def g(col, default=np.nan):
-return float(last[col]) if col in dfi.columns and not np.isnan(last[col]) else default
-
-snap = {
-"MA20": g("MA20"), "MA50": g("MA50"), "EMA200": g("EMA200"),
-"MACD": g("MACD"), "MACD_signal": g("MACD_signal"), "MACD_hist": g("MACD_hist"),
-"RSI": g("RSI"), "ATR": g("ATR"),
-"ADX": g("ADX"), "DIP": g("DIP"), "DIN": g("DIN"),
-"BOLL_U": g("BOLL_U"), "BOLL_L": g("BOLL_L"),
-"KDJ_K": g("KDJ_K"), "KDJ_D": g("KDJ_D"), "KDJ_J": g("KDJ_J"),
-"MFI": g("MFI") if "MFI" in dfi.columns else np.nan,
-"CCI": g("CCI") if "CCI" in dfi.columns else np.nan,
-"PSAR": g("PSAR") if "PSAR" in dfi.columns else np.nan,
-}
-
-# ---------- 做多/做空评分（0-100） ----------
-long_score = 0.0
-short_score = 0.0
-weights = {
-"trend": 30, "momentum": 30, "overbought_oversold": 15, "volatility": 10, "volume": 10, "extras": 5
-}
-# 趋势（MA/EMA + DI方向）
-trend_up = 0
+        return float(last[col]) if col in dfi.columns and not np.isnan(last[col]) else default
+    
+    snap = {
+        "MA20": g("MA20"), "MA50": g("MA50"), "EMA200": g("EMA200"),
+        "MACD": g("MACD"), "MACD_signal": g("MACD_signal"), "MACD_hist": g("MACD_hist"),
+        "RSI": g("RSI"), "ATR": g("ATR"),
+        "ADX": g("ADX"), "DIP": g("DIP"), "DIN": g("DIN"),
+        "BOLL_U": g("BOLL_U"), "BOLL_L": g("BOLL_L"),
+        "KDJ_K": g("KDJ_K"), "KDJ_D": g("KDJ_D"), "KDJ_J": g("KDJ_J"),
+        "MFI": g("MFI") if "MFI" in dfi.columns else np.nan,
+        "CCI": g("CCI") if "CCI" in dfi.columns else np.nan,
+        "PSAR": g("PSAR") if "PSAR" in dfi.columns else np.nan,
+    }
+    
+    # ---------- 做多/做空评分（0-100） ----------
+    long_score = 0.0
+    short_score = 0.0
+    weights = {
+        "trend": 30, "momentum": 30, "overbought_oversold": 15, "volatility": 10, "volume": 10, "extras": 5
+    }
+    # 趋势（MA/EMA + DI方向）
+    trend_up = 0
     if not np.isnan(snap["MA20"]) and not np.isnan(snap["MA50"]) and snap["MA20"] > snap["MA50"]:
-trend_up += 1
+        trend_up += 1
     if not np.isnan(snap["EMA200"]) and price > snap["EMA200"]:
-trend_up += 1
-di_up = 1 if (not np.isnan(snap["DIP"]) and not np.isnan(snap["DIN"]) and snap["DIP"] > snap["DIN"]) else 0
-adx_str = 1 if (not np.isnan(snap["ADX"]) and snap["ADX"] >= 20) else 0  # ADX阈值：20认为有趋势
-trend_up_score = (trend_up + di_up + adx_str) / 4.0  # 0~1
-trend_dn_score = (1 - (trend_up)) / 2.0 + (1 if di_up==0 else 0)/2.0  # 粗略反向
-
-# 动能（MACD、KDJ交叉）
-mom_up = 0
+        trend_up += 1
+    di_up = 1 if (not np.isnan(snap["DIP"]) and not np.isnan(snap["DIN"]) and snap["DIP"] > snap["DIN"]) else 0
+    adx_str = 1 if (not np.isnan(snap["ADX"]) and snap["ADX"] >= 20) else 0  # ADX阈值：20认为有趋势
+    trend_up_score = (trend_up + di_up + adx_str) / 4.0  # 0~1
+    trend_dn_score = (1 - (trend_up)) / 2.0 + (1 if di_up==0 else 0)/2.0  # 粗略反向
+    
+    # 动能（MACD、KDJ交叉）
+    mom_up = 0
     if not np.isnan(snap["MACD"]) and not np.isnan(snap["MACD_signal"]) and snap["MACD"] > snap["MACD_signal"]:
-mom_up += 1
+        mom_up += 1
     if not np.isnan(snap["KDJ_K"]) and not np.isnan(snap["KDJ_D"]) and snap["KDJ_K"] > snap["KDJ_D"]:
-mom_up += 1
-mom_up_score = mom_up / 2.0
-mom_dn_score = 1 - mom_up_score
-
-# 超买超卖（RSI/KDJ）
-obos_up = 0
+        mom_up += 1
+    mom_up_score = mom_up / 2.0
+    mom_dn_score = 1 - mom_up_score
+    
+    # 超买超卖（RSI/KDJ）
+    obos_up = 0
     if not np.isnan(snap["RSI"]):
         if snap["RSI"] < 30: obos_up += 1
         if snap["RSI"] > 70: obos_up -= 1
     if not np.isnan(snap["KDJ_K"]):
         if snap["KDJ_K"] < 20: obos_up += 1
         if snap["KDJ_K"] > 80: obos_up -= 1
-obos_up_score = (obos_up + 2) / 4.0  # 0~1，中性=0.5
-obos_dn_score = 1 - obos_up_score
-
-# 波动（ATR占价比例，越高越不利开仓）
-atrp = snap["ATR"]/price if not np.isnan(snap["ATR"]) and price>0 else 0.01
-vol_score = max(0.0, 1.0 - min(1.0, atrp*10))  # ATR占比>10% 则接近0分
-
-# 量能（MFI/OBV不可用则忽略，这里仅用MFI中性55以下偏多，55以上偏空）
-volu_up_score = 0.5
+    obos_up_score = (obos_up + 2) / 4.0  # 0~1，中性=0.5
+    obos_dn_score = 1 - obos_up_score
+    
+    # 波动（ATR占价比例，越高越不利开仓）
+    atrp = snap["ATR"]/price if not np.isnan(snap["ATR"]) and price>0 else 0.01
+    vol_score = max(0.0, 1.0 - min(1.0, atrp*10))  # ATR占比>10% 则接近0分
+    
+    # 量能（MFI/OBV不可用则忽略，这里仅用MFI中性55以下偏多，55以上偏空）
+    volu_up_score = 0.5
     if not np.isnan(snap["MFI"]):
         if snap["MFI"] < 45: volu_up_score = 0.7
         elif snap["MFI"] > 55: volu_up_score = 0.3
-
-# 其它（CCI偏离、价格位于布林）
-extras_up = 0.5
+    
+    # 其它（CCI偏离、价格位于布林）
+    extras_up = 0.5
     if not np.isnan(snap["BOLL_U"]) and price < snap["BOLL_U"]: extras_up += 0.1
     if not np.isnan(snap["BOLL_L"]) and price < snap["BOLL_L"]: extras_up += 0.1  # 下轨外偏反转
-extras_up = min(1.0, max(0.0, extras_up))
-extras_dn = 1 - extras_up
-
-long_score = (
-weights["trend"]*trend_up_score +
-weights["momentum"]*mom_up_score +
-weights["overbought_oversold"]*obos_up_score +
-weights["volatility"]*vol_score +
-weights["volume"]*volu_up_score +
-weights["extras"]*extras_up
-) / sum(weights.values()) * 100.0
-
-short_score = (
-weights["trend"]*trend_dn_score +
-weights["momentum"]*mom_dn_score +
-weights["overbought_oversold"]*obos_dn_score +
-weights["volatility"]*vol_score +
-weights["volume"]*(1-volu_up_score) +
-weights["extras"]*extras_dn
-) / sum(weights.values()) * 100.0
-
-# ---------- 斐波那契盈亏比（基于最近N根K线高低点） ----------
-# 复用上文斐波那契设置，如果变量不存在则临时计算
-try:
-fib_high, fib_low, levels
-except NameError:
-sub_df = dfi.tail(100)
-fib_high = float(sub_df["High"].max())
-fib_low = float(sub_df["Low"].min())
-levels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1]
-fib_prices = [fib_high - (fib_high - fib_low) * l for l in levels]
-fib_prices = sorted(fib_prices)  # 从低到高
-
-# 找到离当前价最近的上下两个Fib价位
-below = max([p for p in fib_prices if p <= price], default=fib_prices[0])
-above = min([p for p in fib_prices if p >= price], default=fib_prices[-1])
-
-# 趋势方向参考：DIP vs DIN（若无趋势则RR偏保守）
-trend_dir = 1 if (not np.isnan(snap["DIP"]) and not np.isnan(snap["DIN"]) and snap["DIP"] >= snap["DIN"]) else -1
-# 做多：目标=上一个更高的Fib，止损=下一个更低的Fib
-# 做空：目标=下一个更低的Fib，止损=上一个更高的Fib
+    extras_up = min(1.0, max(0.0, extras_up))
+    extras_dn = 1 - extras_up
+    
+    long_score = (
+        weights["trend"]*trend_up_score +
+        weights["momentum"]*mom_up_score +
+        weights["overbought_oversold"]*obos_up_score +
+        weights["volatility"]*vol_score +
+        weights["volume"]*volu_up_score +
+        weights["extras"]*extras_up
+    ) / sum(weights.values()) * 100.0
+    
+    short_score = (
+        weights["trend"]*trend_dn_score +
+        weights["momentum"]*mom_dn_score +
+        weights["overbought_oversold"]*obos_dn_score +
+        weights["volatility"]*vol_score +
+        weights["volume"]*(1-volu_up_score) +
+        weights["extras"]*extras_dn
+    ) / sum(weights.values()) * 100.0
+    
+    # ---------- 斐波那契盈亏比（基于最近N根K线高低点） ----------
+    # 复用上文斐波那契设置，如果变量不存在则临时计算
+    try:
+        fib_high, fib_low, levels
+    except NameError:
+        sub_df = dfi.tail(100)
+        fib_high = float(sub_df["High"].max())
+        fib_low = float(sub_df["Low"].min())
+        levels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1]
+    fib_prices = [fib_high - (fib_high - fib_low) * l for l in levels]
+    fib_prices = sorted(fib_prices)  # 从低到高
+    
+    # 找到离当前价最近的上下两个Fib价位
+    below = max([p for p in fib_prices if p <= price], default=fib_prices[0])
+    above = min([p for p in fib_prices if p >= price], default=fib_prices[-1])
+    
+    # 趋势方向参考：DIP vs DIN（若无趋势则RR偏保守）
+    trend_dir = 1 if (not np.isnan(snap["DIP"]) and not np.isnan(snap["DIN"]) and snap["DIP"] >= snap["DIN"]) else -1
+    # 做多：目标=上一个更高的Fib，止损=下一个更低的Fib
+    # 做空：目标=下一个更低的Fib，止损=上一个更高的Fib
     def next_upper(p):
-ups = [x for x in fib_prices if x > p]
-return ups[0] if ups else fib_prices[-1]
+        ups = [x for x in fib_prices if x > p]
+        return ups[0] if ups else fib_prices[-1]
     def next_lower(p):
-downs = [x for x in fib_prices if x < p]
-return downs[-1] if downs else fib_prices[0]
-long_tp = next_upper(price)
-long_sl = next_lower(price)
-short_tp = next_lower(price)
-short_sl = next_upper(price)
-long_rr = (long_tp - price) / max(1e-9, price - long_sl) if long_tp>price and long_sl<price else np.nan
-short_rr = (price - short_tp) / max(1e-9, short_sl - price) if short_tp<price and short_sl>price else np.nan
-
-# ---------- 诱多/诱空概率（启发式） ----------
-# 条件示例：
-# 诱多（Bull Trap）：价格突破上轨或前高但ADX<18 & MACD背离（hist走弱）；
-# 诱空（Bear Trap）：价格跌破下轨或前低但ADX<18 & 动能反弹。
+        downs = [x for x in fib_prices if x < p]
+        return downs[-1] if downs else fib_prices[0]
+    long_tp = next_upper(price)
+    long_sl = next_lower(price)
+    short_tp = next_lower(price)
+    short_sl = next_upper(price)
+    long_rr = (long_tp - price) / max(1e-9, price - long_sl) if long_tp>price and long_sl<price else np.nan
+    short_rr = (price - short_tp) / max(1e-9, short_sl - price) if short_tp<price and short_sl>price else np.nan
+    
+    # ---------- 诱多/诱空概率（启发式） ----------
+    # 条件示例：
+    # 诱多（Bull Trap）：价格突破上轨或前高但ADX<18 & MACD背离（hist走弱）；
+    # 诱空（Bear Trap）：价格跌破下轨或前低但ADX<18 & 动能反弹。
     def sigmoid(x): 
-return 1/(1+np.exp(-x))
-adx_weak = (not np.isnan(snap["ADX"]) and snap["ADX"] < 18)
-upper_break = (not np.isnan(snap["BOLL_U"]) and price > snap["BOLL_U"])
-lower_break = (not np.isnan(snap["BOLL_L"]) and price < snap["BOLL_L"])
-macd_weak = (not np.isnan(snap["MACD_hist"]) and len(dfi)>3 and
-(dfi["MACD_hist"].iloc[-1] < dfi["MACD_hist"].iloc[-2]) )
-kdj_overbought = (not np.isnan(snap["KDJ_K"]) and snap["KDJ_K"]>80)
-kdj_oversold = (not np.isnan(snap["KDJ_K"]) and snap["KDJ_K"]<20)
-
-bull_trap_score = 0
+        return 1/(1+np.exp(-x))
+    adx_weak = (not np.isnan(snap["ADX"]) and snap["ADX"] < 18)
+    upper_break = (not np.isnan(snap["BOLL_U"]) and price > snap["BOLL_U"])
+    lower_break = (not np.isnan(snap["BOLL_L"]) and price < snap["BOLL_L"])
+    macd_weak = (not np.isnan(snap["MACD_hist"]) and len(dfi)>3 and
+                 (dfi["MACD_hist"].iloc[-1] < dfi["MACD_hist"].iloc[-2]) )
+    kdj_overbought = (not np.isnan(snap["KDJ_K"]) and snap["KDJ_K"]>80)
+    kdj_oversold = (not np.isnan(snap["KDJ_K"]) and snap["KDJ_K"]<20)
+    
+    bull_trap_score = 0
     if upper_break: bull_trap_score += 1
     if adx_weak: bull_trap_score += 1
     if macd_weak: bull_trap_score += 1
     if kdj_overbought: bull_trap_score += 0.5
-bull_trap_prob = min(0.98, sigmoid(bull_trap_score - 1.5)) * 100
-
-bear_trap_score = 0
+    bull_trap_prob = min(0.98, sigmoid(bull_trap_score - 1.5)) * 100
+    
+    bear_trap_score = 0
     if lower_break: bear_trap_score += 1
     if adx_weak: bear_trap_score += 1
     if not np.isnan(snap["MACD_hist"]) and dfi["MACD_hist"].iloc[-1] > dfi["MACD_hist"].iloc[-2]: 
-bear_trap_score += 1
+        bear_trap_score += 1
     if kdj_oversold: bear_trap_score += 0.5
-bear_trap_prob = min(0.98, sigmoid(bear_trap_score - 1.5)) * 100
+    bear_trap_prob = min(0.98, sigmoid(bear_trap_score - 1.5)) * 100
+    
+    # ---------- UI：四宫格指标 ----------
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("做多评分", f"{long_score:.0f}/100")
+    c2.metric("做空评分", f"{short_score:.0f}/100")
+    c3.metric("诱多概率", f"{bull_trap_prob:.1f}%")
+    c4.metric("诱空概率", f"{bear_trap_prob:.1f}%")
+    
+    # 斐波那契盈亏比
+    c5, c6 = st.columns(2)
+    c5.metric("Fibo 盈亏比（多）", "-" if np.isnan(long_rr) else f"{long_rr:.2f}")
+    c6.metric("Fibo 盈亏比（空）", "-" if np.isnan(short_rr) else f"{short_rr:.2f}")
 
-# ---------- UI：四宫格指标 ----------
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("做多评分", f"{long_score:.0f}/100")
-c2.metric("做空评分", f"{short_score:.0f}/100")
-c3.metric("诱多概率", f"{bull_trap_prob:.1f}%")
-c4.metric("诱空概率", f"{bear_trap_prob:.1f}%")
-
-# 斐波那契盈亏比
-c5, c6 = st.columns(2)
-c5.metric("Fibo 盈亏比（多）", "-" if np.isnan(long_rr) else f"{long_rr:.2f}")
-c6.metric("Fibo 盈亏比（空）", "-" if np.isnan(short_rr) else f"{short_rr:.2f}")
-
-
-# ================= 评分数值文字显示 =================
-colg1, colg2 = st.columns(2)
+    
+    # ================= 评分数值文字显示 =================
+    colg1, colg2 = st.columns(2)
     with colg1:
-st.markdown(f"<h2 style='color:green; text-align:center;'>做多评分: <b>{float(long_score):.1f}</b></h2>", unsafe_allow_html=True)
+        st.markdown(f"<h2 style='color:green; text-align:center;'>做多评分: <b>{float(long_score):.1f}</b></h2>", unsafe_allow_html=True)
     with colg2:
-st.markdown(f"<h2 style='color:red; text-align:center;'>做空评分: <b>{float(short_score):.1f}</b></h2>", unsafe_allow_html=True)
+        st.markdown(f"<h2 style='color:red; text-align:center;'>做空评分: <b>{float(short_score):.1f}</b></h2>", unsafe_allow_html=True)
 
-
+    
 
 # ================= 雷达图显示（评分构成） =================
-# 使用已计算的子评分（0~1）并映射到0~100
+    # 使用已计算的子评分（0~1）并映射到0~100
     def _nz(x, default=0.5):
-try:
-import numpy as _np
-return float(x) if (x is not None and not _np.isnan(x)) else float(default)
-except Exception:
-return float(default)
-radar_factors = ["趋势","动能","超买超卖","波动","量能","其它"]
-radar_values01 = [
-_nz(trend_up_score), _nz(mom_up_score), _nz(obos_up_score), _nz(vol_score), _nz(volu_up_score), _nz(extras_up)
-]
-radar_values = [v*100 for v in radar_values01]
-fig_radar = go.Figure()
-fig_radar.add_trace(go.Scatterpolar(
-r=radar_values + [radar_values[0]],
-theta=radar_factors + [radar_factors[0]],
-fill='toself',
-name='评分构成'
-))
-fig_radar.update_layout(
-polar=dict(radialaxis=dict(visible=True, range=[0,100])),
-showlegend=False,
-title="评分构成雷达图"
-)
-st.plotly_chart(fig_radar, use_container_width=True)
-
-# ---------- 指标清单（到达信号打勾） ----------
-checklist = []
+        try:
+            import numpy as _np
+            return float(x) if (x is not None and not _np.isnan(x)) else float(default)
+        except Exception:
+            return float(default)
+    radar_factors = ["趋势","动能","超买超卖","波动","量能","其它"]
+    radar_values01 = [
+        _nz(trend_up_score), _nz(mom_up_score), _nz(obos_up_score), _nz(vol_score), _nz(volu_up_score), _nz(extras_up)
+    ]
+    radar_values = [v*100 for v in radar_values01]
+    fig_radar = go.Figure()
+    fig_radar.add_trace(go.Scatterpolar(
+        r=radar_values + [radar_values[0]],
+        theta=radar_factors + [radar_factors[0]],
+        fill='toself',
+        name='评分构成'
+    ))
+    fig_radar.update_layout(
+        polar=dict(radialaxis=dict(visible=True, range=[0,100])),
+        showlegend=False,
+        title="评分构成雷达图"
+    )
+    st.plotly_chart(fig_radar, use_container_width=True)
+    
+    # ---------- 指标清单（到达信号打勾） ----------
+    checklist = []
     def mark(flag): return "✅" if flag else "—"
-checklist.append(("ADX趋势（>=20）", mark(not np.isnan(snap["ADX"]) and snap["ADX"]>=20),
-f"ADX={snap['ADX']:.1f}，{('多头' if snap['DIP']>snap['DIN'] else '空头') if (not np.isnan(snap['DIP']) and not np.isnan(snap['DIN'])) else '方向未知'}"))
-checklist.append(("MACD金叉", mark(not np.isnan(snap["MACD"]) and not np.isnan(snap["MACD_signal"]) and snap["MACD"]>snap["MACD_signal"]),
-f"MACD={snap['MACD']:.3f} / Signal={snap['MACD_signal']:.3f}"))
-checklist.append(("RSI超卖(<30)", mark(not np.isnan(snap["RSI"]) and snap["RSI"]<30), f"RSI={snap['RSI']:.1f}"))
-checklist.append(("RSI超买(>70)", mark(not np.isnan(snap["RSI"]) and snap["RSI"]>70), f"RSI={snap['RSI']:.1f}"))
-checklist.append(("KDJ金叉", mark(not np.isnan(snap["KDJ_K"]) and not np.isnan(snap["KDJ_D"]) and snap["KDJ_K"]>snap["KDJ_D"]), f"K={snap['KDJ_K']:.1f}/D={snap['KDJ_D']:.1f}"))
-checklist.append(("价格在EMA200之上", mark(not np.isnan(snap["EMA200"]) and price>snap["EMA200"]), f"EMA200={snap['EMA200']:.2f}"))
-checklist.append(("布林上轨突破", mark(not np.isnan(snap['BOLL_U']) and price>snap['BOLL_U']), f"U={snap['BOLL_U']:.2f}"))
-checklist.append(("布林下轨跌破", mark(not np.isnan(snap['BOLL_L']) and price<snap['BOLL_L']), f"L={snap['BOLL_L']:.2f}"))
+    checklist.append(("ADX趋势（>=20）", mark(not np.isnan(snap["ADX"]) and snap["ADX"]>=20),
+                      f"ADX={snap['ADX']:.1f}，{('多头' if snap['DIP']>snap['DIN'] else '空头') if (not np.isnan(snap['DIP']) and not np.isnan(snap['DIN'])) else '方向未知'}"))
+    checklist.append(("MACD金叉", mark(not np.isnan(snap["MACD"]) and not np.isnan(snap["MACD_signal"]) and snap["MACD"]>snap["MACD_signal"]),
+                      f"MACD={snap['MACD']:.3f} / Signal={snap['MACD_signal']:.3f}"))
+    checklist.append(("RSI超卖(<30)", mark(not np.isnan(snap["RSI"]) and snap["RSI"]<30), f"RSI={snap['RSI']:.1f}"))
+    checklist.append(("RSI超买(>70)", mark(not np.isnan(snap["RSI"]) and snap["RSI"]>70), f"RSI={snap['RSI']:.1f}"))
+    checklist.append(("KDJ金叉", mark(not np.isnan(snap["KDJ_K"]) and not np.isnan(snap["KDJ_D"]) and snap["KDJ_K"]>snap["KDJ_D"]), f"K={snap['KDJ_K']:.1f}/D={snap['KDJ_D']:.1f}"))
+    checklist.append(("价格在EMA200之上", mark(not np.isnan(snap["EMA200"]) and price>snap["EMA200"]), f"EMA200={snap['EMA200']:.2f}"))
+    checklist.append(("布林上轨突破", mark(not np.isnan(snap['BOLL_U']) and price>snap['BOLL_U']), f"U={snap['BOLL_U']:.2f}"))
+    checklist.append(("布林下轨跌破", mark(not np.isnan(snap['BOLL_L']) and price<snap['BOLL_L']), f"L={snap['BOLL_L']:.2f}"))
+    
+    # 显示为表格
+    import pandas as pd
+    cl_df = pd.DataFrame(checklist, columns=["指标/条件","信号","说明"])
+    st.dataframe(cl_df, use_container_width=True)
+    
+    st.caption("评分系统基于当前价相对多项指标的位置与信号，仅供参考，非投资建议。")
 
-# 显示为表格
-import pandas as pd
-cl_df = pd.DataFrame(checklist, columns=["指标/条件","信号","说明"])
-st.dataframe(cl_df, use_container_width=True)
-
-st.caption("评分系统基于当前价相对多项指标的位置与信号，仅供参考，非投资建议。")
-
-
-last = dfi.dropna().iloc[-1]
-price = float(last["Close"])
-
-# 1) 趋势/动能评分
-score = 0; reasons = []
-ma20 = dfi["MA20"].iloc[-1] if "MA20" in dfi.columns else np.nan
-ma50 = dfi["MA50"].iloc[-1] if "MA50" in dfi.columns else np.nan
+    
+    last = dfi.dropna().iloc[-1]
+    price = float(last["Close"])
+    
+    # 1) 趋势/动能评分
+    score = 0; reasons = []
+    ma20 = dfi["MA20"].iloc[-1] if "MA20" in dfi.columns else np.nan
+    ma50 = dfi["MA50"].iloc[-1] if "MA50" in dfi.columns else np.nan
     if not np.isnan(ma20) and not np.isnan(ma50):
         if ma20 > ma50 and price > ma20:
-score += 2; reasons.append("MA20>MA50 且价在MA20上，多头趋势")
+            score += 2; reasons.append("MA20>MA50 且价在MA20上，多头趋势")
         elif ma20 < ma50 and price < ma20:
-score -= 2; reasons.append("MA20<MA50 且价在MA20下，空头趋势")
-
+            score -= 2; reasons.append("MA20<MA50 且价在MA20下，空头趋势")
+    
     if use_macd and all(c in dfi.columns for c in ["MACD","MACD_signal","MACD_hist"]):
         if last["MACD"] > last["MACD_signal"] and last["MACD_hist"] > 0:
-score += 2; reasons.append("MACD 金叉且柱为正")
+            score += 2; reasons.append("MACD 金叉且柱为正")
         elif last["MACD"] < last["MACD_signal"] and last["MACD_hist"] < 0:
-score -= 2; reasons.append("MACD 死叉且柱为负")
-
+            score -= 2; reasons.append("MACD 死叉且柱为负")
+    
     if use_rsi and "RSI" in dfi.columns:
         if last["RSI"] >= 70:
-score -= 1; reasons.append("RSI 过热（≥70）")
+            score -= 1; reasons.append("RSI 过热（≥70）")
         elif last["RSI"] <= 30:
-score += 1; reasons.append("RSI 超卖（≤30）")
-
-# KDJ信号评分
+            score += 1; reasons.append("RSI 超卖（≤30）")
+    
+    # KDJ信号评分
     if use_kdj and all(c in dfi.columns for c in ["KDJ_K","KDJ_D"]):
         if last["KDJ_K"] > last["KDJ_D"] and last["KDJ_K"] < 30:
-score += 1; reasons.append("KDJ 金叉且处于超卖区")
+            score += 1; reasons.append("KDJ 金叉且处于超卖区")
         elif last["KDJ_K"] < last["KDJ_D"] and last["KDJ_K"] > 70:
-score -= 1; reasons.append("KDJ 死叉且处于超买区")
-
-decision = "观望"
+            score -= 1; reasons.append("KDJ 死叉且处于超买区")
+    
+    decision = "观望"
     if score >= 3: decision = "买入/加仓"
     elif score <= -2: decision = "减仓/离场"
-
-# 2) 历史百分位（最近窗口）
-hist_window = min(len(dfi), 365)
-recent_close = dfi["Close"].iloc[-hist_window:]
-pct_rank = float((recent_close <= price).mean()) * 100 if hist_window > 1 else 50.0
-
-# 3) 支撑位/压力位（最近N根）
-N = 20
-recent_high = dfi["High"].iloc[-N:]
-recent_low = dfi["Low"].iloc[-N:]
-support_zone = (recent_low.min(), dfi["Close"].iloc[-N:].min())
-resist_zone = (dfi["Close"].iloc[-N:].max(), recent_high.max())
-
-# 4) ATR 止盈止损
+    
+    # 2) 历史百分位（最近窗口）
+    hist_window = min(len(dfi), 365)
+    recent_close = dfi["Close"].iloc[-hist_window:]
+    pct_rank = float((recent_close <= price).mean()) * 100 if hist_window > 1 else 50.0
+    
+    # 3) 支撑位/压力位（最近N根）
+    N = 20
+    recent_high = dfi["High"].iloc[-N:]
+    recent_low = dfi["Low"].iloc[-N:]
+    support_zone = (recent_low.min(), dfi["Close"].iloc[-N:].min())
+    resist_zone = (dfi["Close"].iloc[-N:].max(), recent_high.max())
+    
+    # 4) ATR 止盈止损
     if use_atr and "ATR" in dfi.columns and not np.isnan(last["ATR"]):
-atr_val = float(last["ATR"])
+        atr_val = float(last["ATR"])
     else:
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
-atr_val = float(dfi["Close"].pct_change().rolling(14).std().iloc[-1] * price)
-tp = price + 2.0*atr_val if decision != "减仓/离场" else price - 2.0*atr_val
-sl = price - 1.2*atr_val if decision != "减仓/离场" else price + 1.2*atr_val
-
-hint = "区间中位；按信号执行为主。"
+        atr_val = float(dfi["Close"].pct_change().rolling(14).std().iloc[-1] * price)
+    tp = price + 2.0*atr_val if decision != "减仓/离场" else price - 2.0*atr_val
+    sl = price - 1.2*atr_val if decision != "减仓/离场" else price + 1.2*atr_val
+    
+    hint = "区间中位；按信号执行为主。"
     if pct_rank <= 25:
-hint = "低位区间（≤25%）→ 倾向逢低布局，关注止损与量能确认。"
+        hint = "低位区间（≤25%）→ 倾向逢低布局，关注止损与量能确认。"
     elif pct_rank >= 75:
-hint = "高位区间（≥75%）→ 谨慎追高，关注回撤与量能衰减。"
-
-c1,c2,c3,c4 = st.columns(4)
-c1.metric("最新价", f"{price:,.4f}")
-c2.metric("建议", decision)
-c3.metric("评分", str(score))
-c4.metric("ATR", f"{atr_val:,.4f}")
-
-st.write("**依据**：", "；".join(reasons) if reasons else "信号不明确，建议观望。")
-
-
-# ========================= 胜率统计（简版） =========================
+        hint = "高位区间（≥75%）→ 谨慎追高，关注回撤与量能衰减。"
+    
+    c1,c2,c3,c4 = st.columns(4)
+    c1.metric("最新价", f"{price:,.4f}")
+    c2.metric("建议", decision)
+    c3.metric("评分", str(score))
+    c4.metric("ATR", f"{atr_val:,.4f}")
+    
+    st.write("**依据**：", "；".join(reasons) if reasons else "信号不明确，建议观望。")
+    st.info(
+        f"价格百分位：**{pct_rank:.1f}%**｜"
+        f"支撑区：**{support_zone[0]:,.4f} ~ {support_zone[1]:,.4f}**｜"
+        f"压力区：**{resist_zone[0]:,.4f} ~ {resist_zone[1]:,.4f}**｜"
+        f"建议止损：**{sl:,.4f}** ｜ 建议止盈：**{tp:,.4f}**\n\n"
+        f"提示：{hint}"
+    )
+    
+    # ========================= 胜率统计（简版） =========================
     def simple_backtest(df):
-df = df.dropna().copy()
-cond_ok = all(c in df.columns for c in ["MA20","MA50","MACD","MACD_signal"])
+        df = df.dropna().copy()
+        cond_ok = all(c in df.columns for c in ["MA20","MA50","MACD","MACD_signal"])
         if cond_ok:
-long_cond = (df["MA20"]>df["MA50"]) & (df["MACD"]>df["MACD_signal"])
-short_cond = (df["MA20"]<df["MA50"]) & (df["MACD"]<df["MACD_signal"])
-sig = np.where(long_cond, 1, np.where(short_cond, -1, 0))
+            long_cond = (df["MA20"]>df["MA50"]) & (df["MACD"]>df["MACD_signal"])
+            short_cond = (df["MA20"]<df["MA50"]) & (df["MACD"]<df["MACD_signal"])
+            sig = np.where(long_cond, 1, np.where(short_cond, -1, 0))
         else:
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
-sig = np.zeros(len(df))
-df["sig"] = sig
-ret = df["Close"].pct_change().fillna(0.0).values
-pos = pd.Series(sig, index=df.index).replace(0, np.nan).ffill().fillna(0).values
-strat_ret = pos * ret
-equity = (1+pd.Series(strat_ret, index=df.index)).cumprod()
-pnl = []
-last_side = 0; entry_price = None
+            sig = np.zeros(len(df))
+        df["sig"] = sig
+        ret = df["Close"].pct_change().fillna(0.0).values
+        pos = pd.Series(sig, index=df.index).replace(0, np.nan).ffill().fillna(0).values
+        strat_ret = pos * ret
+        equity = (1+pd.Series(strat_ret, index=df.index)).cumprod()
+        pnl = []
+        last_side = 0; entry_price = None
         for side,p in zip(pos, df["Close"].values):
             if side!=0 and last_side==0:
-entry_price = p; last_side = side
+                entry_price = p; last_side = side
             elif side==0 and last_side!=0 and entry_price is not None:
-pnl.append((p/entry_price-1)*last_side); last_side=0; entry_price=None
-pnl = pd.Series(pnl) if len(pnl)>0 else pd.Series(dtype=float)
-win_rate = float((pnl>0).mean()) if len(pnl)>0 else 0.0
-roll_max = equity.cummax(); mdd = float(((roll_max - equity)/roll_max).max()) if len(equity)>0 else 0.0
-return equity, pnl, win_rate, mdd
-
-st.markdown("---")
-st.subheader("📈 策略胜率与净值")
-equity, pnl, win_rate, mdd = simple_backtest(dfi)
-c1, c2, c3 = st.columns(3)
-c1.metric("历史胜率", f"{win_rate*100:.2f}%")
-c2.metric("最大回撤", f"{mdd*100:.2f}%")
-total_ret = equity.iloc[-1]/equity.iloc[0]-1 if len(equity)>1 else 0.0
-c3.metric("累计收益", f"{total_ret*100:.2f}%")
-fig_eq = go.Figure()
-fig_eq.add_trace(go.Scatter(x=equity.index, y=equity.values, mode="lines", name="策略净值"))
-fig_eq.update_layout(height=280, xaxis_rangeslider_visible=False)
-st.plotly_chart(fig_eq, use_container_width=True, config={'scrollZoom': True, 'responsive': True, 'displaylogo': False})
+                pnl.append((p/entry_price-1)*last_side); last_side=0; entry_price=None
+        pnl = pd.Series(pnl) if len(pnl)>0 else pd.Series(dtype=float)
+        win_rate = float((pnl>0).mean()) if len(pnl)>0 else 0.0
+        roll_max = equity.cummax(); mdd = float(((roll_max - equity)/roll_max).max()) if len(equity)>0 else 0.0
+        return equity, pnl, win_rate, mdd
+    
+    st.markdown("---")
+    st.subheader("📈 策略胜率与净值")
+    equity, pnl, win_rate, mdd = simple_backtest(dfi)
+    c1, c2, c3 = st.columns(3)
+    c1.metric("历史胜率", f"{win_rate*100:.2f}%")
+    c2.metric("最大回撤", f"{mdd*100:.2f}%")
+    total_ret = equity.iloc[-1]/equity.iloc[0]-1 if len(equity)>1 else 0.0
+    c3.metric("累计收益", f"{total_ret*100:.2f}%")
+    fig_eq = go.Figure()
+    fig_eq.add_trace(go.Scatter(x=equity.index, y=equity.values, mode="lines", name="策略净值"))
+    fig_eq.update_layout(height=280, xaxis_rangeslider_visible=False)
+    st.plotly_chart(fig_eq, use_container_width=True, config={'scrollZoom': True, 'responsive': True, 'displaylogo': False})
     if len(pnl)>0:
-st.plotly_chart(px.histogram(pnl, nbins=20, title="单笔收益分布", config={'scrollZoom': True, 'responsive': True, 'displaylogo': False}), use_container_width=True)
+        st.plotly_chart(px.histogram(pnl, nbins=20, title="单笔收益分布", config={'scrollZoom': True, 'responsive': True, 'displaylogo': False}), use_container_width=True)
     else:
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
-
-
-# ========================= 风控面板（结果） =========================
-st.markdown("---")
-st.subheader("🛡️ 风控面板（结果）")
-atr_for_pos = atr_val if atr_val and atr_val>0 else (dfi["Close"].pct_change().rolling(14).std().iloc[-1]*price)
-stop_distance = atr_for_pos / max(price, 1e-9)
-risk_amount = float(account_value) * (float(risk_pct)/100.0)
-position_value = risk_amount / max(stop_distance, 1e-6) / max(int(leverage),1)
-position_value = min(position_value, float(account_value))
-position_size = position_value / max(price, 1e-9)
-rc1, rc2, rc3 = st.columns(3)
-rc1.metric("建议持仓名义价值", f"{position_value:,.2f}")
-rc2.metric("建议仓位数量", f"{position_size:,.6f}")
-rc3.metric("单笔风险金额", f"{risk_amount:,.2f}")
-st.caption("仓位公式：头寸 = 账户总值 × 单笔风险% ÷ (止损幅度 × 杠杆)")
-
-# ========================= 组合风险暴露（按波动率配比） =========================
-st.subheader("📊 组合风险暴露建议（低波动高权重）")
+        st.info("暂无可统计的交易样本。")
+    
+    # ========================= 风控面板（结果） =========================
+    st.markdown("---")
+    st.subheader("🛡️ 风控面板（结果）")
+    atr_for_pos = atr_val if atr_val and atr_val>0 else (dfi["Close"].pct_change().rolling(14).std().iloc[-1]*price)
+    stop_distance = atr_for_pos / max(price, 1e-9)
+    risk_amount = float(account_value) * (float(risk_pct)/100.0)
+    position_value = risk_amount / max(stop_distance, 1e-6) / max(int(leverage),1)
+    position_value = min(position_value, float(account_value))
+    position_size = position_value / max(price, 1e-9)
+    rc1, rc2, rc3 = st.columns(3)
+    rc1.metric("建议持仓名义价值", f"{position_value:,.2f}")
+    rc2.metric("建议仓位数量", f"{position_size:,.6f}")
+    rc3.metric("单笔风险金额", f"{risk_amount:,.2f}")
+    st.caption("仓位公式：头寸 = 账户总值 × 单笔风险% ÷ (止损幅度 × 杠杆)")
+    
+    # ========================= 组合风险暴露（按波动率配比） =========================
+    st.subheader("📊 组合风险暴露建议（低波动高权重）")
     def get_close_series(sym):
-try:
+        try:
             if source == "CoinGecko（免API）":
-d = load_coingecko_ohlc_robust(sym, interval)
+                d = load_coingecko_ohlc_robust(sym, interval)
             elif source == "TokenInsight API 模式（可填API基址）":
-d = load_tokeninsight_ohlc(api_base, sym, interval)
+                d = load_tokeninsight_ohlc(api_base, sym, interval)
             elif source in ["OKX 公共行情（免API）", "OKX API（可填API基址）"]:
-d = load_okx_public(sym, interval, base_url=api_base if "OKX API" in source else "")
+                d = load_okx_public(sym, interval, base_url=api_base if "OKX API" in source else "")
             else:
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
-d = load_yf(sym, interval)
-return d["Close"].rename(sym) if not d.empty else None
-except Exception:
-return None
-
-series_list = []
+                d = load_yf(sym, interval)
+            return d["Close"].rename(sym) if not d.empty else None
+        except Exception:
+            return None
+    
+    series_list = []
     for s in combo_symbols:
-se = get_close_series(s)
+        se = get_close_series(s)
         if se is not None and not se.empty:
-series_list.append(se)
+            series_list.append(se)
     if series_list:
-closes = pd.concat(series_list, axis=1).dropna()
-vols = closes.pct_change().rolling(30).std().iloc[-1].replace(0, np.nan)
-inv_vol = 1.0/vols
-weights = inv_vol/np.nansum(inv_vol)
-w_df = pd.DataFrame({"symbol": weights.index, "weight": weights.values})
-st.plotly_chart(px.pie(w_df, names="symbol", values="weight", title="建议权重", config={'scrollZoom': True, 'responsive': True, 'displaylogo': False}), use_container_width=True)
+        closes = pd.concat(series_list, axis=1).dropna()
+        vols = closes.pct_change().rolling(30).std().iloc[-1].replace(0, np.nan)
+        inv_vol = 1.0/vols
+        weights = inv_vol/np.nansum(inv_vol)
+        w_df = pd.DataFrame({"symbol": weights.index, "weight": weights.values})
+        st.plotly_chart(px.pie(w_df, names="symbol", values="weight", title="建议权重", config={'scrollZoom': True, 'responsive': True, 'displaylogo': False}), use_container_width=True)
     else:
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
-
-
-# ========================= 新增模块：多指标策略组合 & 绩效预测 =========================
-st.markdown("---")
-st.subheader("🧪 组合策略评估（多指标合成｜非投资建议）")
-
+        st.info("组合标留空或数据不足。")
+    
+    # ========================= 新增模块：多指标策略组合 & 绩效预测 =========================
+    st.markdown("---")
+    st.subheader("🧪 组合策略评估（多指标合成｜非投资建议）")
+    
     with st.expander("选择策略构件（多选）与规则"):
-blocks = [
-"MA20>MA50（趋势做多）",
-"EMA20>EMA50（趋势做多）",
-"价格>EMA200（长线多头）",
-"MACD 金叉（MACD>Signal）",
-"RSI>50（强于中位）",
-"RSI<30 反转做多",
-"突破上轨（BOLL_U）",
-"回踩下轨反弹（价> BOLL_L）",
-"ADX>25（趋势强）",
-"K线上穿VWAP",
-"STOCH 金叉（K>D & K<80）",
-"StochRSI 超卖反转（K<20→上穿）",
-"CCI<-100 反转做多",
-"OBV 上升（OBV 斜率>0）",
-"PSAR 多头（价>PSAR）",
-"KDJ 金叉（K>D & K<20）",
-]
-chosen_blocks = st.multiselect("选择信号构件（至少一个）", options=blocks, default=[
-"MA20>MA50（趋势做多）",
-"MACD 金叉（MACD>Signal）",
-"RSI>50（强于中位）",
-"ADX>25（趋势强）",
-"K线上穿VWAP",
-])
-logic = st.selectbox("合成逻辑", ["AND（全部满足）", "OR（任一满足）", "MAJORITY（多数满足）"], index=0)
-side = st.selectbox("交易方向", ["做多", "做空"], index=0)
-min_hold = st.number_input("最小持有期（根）", min_value=0, value=3, step=1)
-use_exit_flip = st.checkbox("反向信号退出", True)
-use_atr_stop = st.checkbox("启用 ATR 止损/止盈", True)
-atr_sl_mult = st.number_input("ATR 止损倍数", min_value=0.1, value=1.5, step=0.1)
-atr_tp_mult = st.number_input("ATR 止盈倍数", min_value=0.1, value=3.0, step=0.1)
-
+        blocks = [
+            "MA20>MA50（趋势做多）",
+            "EMA20>EMA50（趋势做多）",
+            "价格>EMA200（长线多头）",
+            "MACD 金叉（MACD>Signal）",
+            "RSI>50（强于中位）",
+            "RSI<30 反转做多",
+            "突破上轨（BOLL_U）",
+            "回踩下轨反弹（价> BOLL_L）",
+            "ADX>25（趋势强）",
+            "K线上穿VWAP",
+            "STOCH 金叉（K>D & K<80）",
+            "StochRSI 超卖反转（K<20→上穿）",
+            "CCI<-100 反转做多",
+            "OBV 上升（OBV 斜率>0）",
+            "PSAR 多头（价>PSAR）",
+            "KDJ 金叉（K>D & K<20）",
+        ]
+        chosen_blocks = st.multiselect("选择信号构件（至少一个）", options=blocks, default=[
+            "MA20>MA50（趋势做多）",
+            "MACD 金叉（MACD>Signal）",
+            "RSI>50（强于中位）",
+            "ADX>25（趋势强）",
+            "K线上穿VWAP",
+        ])
+        logic = st.selectbox("合成逻辑", ["AND（全部满足）", "OR（任一满足）", "MAJORITY（多数满足）"], index=0)
+        side = st.selectbox("交易方向", ["做多", "做空"], index=0)
+        min_hold = st.number_input("最小持有期（根）", min_value=0, value=3, step=1)
+        use_exit_flip = st.checkbox("反向信号退出", True)
+        use_atr_stop = st.checkbox("启用 ATR 止损/止盈", True)
+        atr_sl_mult = st.number_input("ATR 止损倍数", min_value=0.1, value=1.5, step=0.1)
+        atr_tp_mult = st.number_input("ATR 止盈倍数", min_value=0.1, value=3.0, step=0.1)
+    
     def _block_signal(df):
-"""根据所选构件返回布尔信号 DataFrame 的 'entry' 与 'exit_hint'（用于反向退出）。"""
-d = df.copy()
-e = pd.Series(False, index=d.index)
-
+        """根据所选构件返回布尔信号 DataFrame 的 'entry' 与 'exit_hint'（用于反向退出）。"""
+        d = df.copy()
+        e = pd.Series(False, index=d.index)
+    
         def shift_cross_up(a, b):
-return (a > b) & (a.shift(1) <= b.shift(1))
-
-# 各构件
-conds = []
+            return (a > b) & (a.shift(1) <= b.shift(1))
+    
+        # 各构件
+        conds = []
         if "MA20>MA50（趋势做多）" in chosen_blocks and all(c in d.columns for c in ["MA20","MA50"]):
-conds.append(d["MA20"] > d["MA50"])
+            conds.append(d["MA20"] > d["MA50"])
         if "EMA20>EMA50（趋势做多）" in chosen_blocks and all(c in d.columns for c in ["EMA20","EMA50"]):
-conds.append(d["EMA20"] > d["EMA50"])
+            conds.append(d["EMA20"] > d["EMA50"])
         if "价格>EMA200（长线多头）" in chosen_blocks and "EMA200" in d.columns:
-conds.append(d["Close"] > d["EMA200"])
+            conds.append(d["Close"] > d["EMA200"])
         if "MACD 金叉（MACD>Signal）" in chosen_blocks and all(c in d.columns for c in ["MACD","MACD_signal"]):
-conds.append(d["MACD"] > d["MACD_signal"])
+            conds.append(d["MACD"] > d["MACD_signal"])
         if "RSI>50（强于中位）" in chosen_blocks and "RSI" in d.columns:
-conds.append(d["RSI"] > 50)
+            conds.append(d["RSI"] > 50)
         if "RSI<30 反转做多" in chosen_blocks and "RSI" in d.columns:
-conds.append(shift_cross_up(50 - (d["RSI"] - 30), 0))  # 近似表示 RSI 上穿30
+            conds.append(shift_cross_up(50 - (d["RSI"] - 30), 0))  # 近似表示 RSI 上穿30
         if "突破上轨（BOLL_U）" in chosen_blocks and "BOLL_U" in d.columns:
-conds.append(d["Close"] > d["BOLL_U"])
+            conds.append(d["Close"] > d["BOLL_U"])
         if "回踩下轨反弹（价> BOLL_L）" in chosen_blocks and "BOLL_L" in d.columns:
-conds.append(shift_cross_up(d["Close"], d["BOLL_L"]))
+            conds.append(shift_cross_up(d["Close"], d["BOLL_L"]))
         if "ADX>25（趋势强）" in chosen_blocks and "ADX" in d.columns:
-conds.append(d["ADX"] > 25)
+            conds.append(d["ADX"] > 25)
         if "K线上穿VWAP" in chosen_blocks and "VWAP" in d.columns:
-conds.append(shift_cross_up(d["Close"], d["VWAP"]))
+            conds.append(shift_cross_up(d["Close"], d["VWAP"]))
         if "STOCH 金叉（K>D & K<80）" in chosen_blocks and all(c in d.columns for c in ["STOCH_K","STOCH_D"]):
-conds.append( (d["STOCH_K"] > d["STOCH_D"]) & (d["STOCH_K"] < 80) & (d["STOCH_D"].shift(1) >= d["STOCH_K"].shift(1)) )
+            conds.append( (d["STOCH_K"] > d["STOCH_D"]) & (d["STOCH_K"] < 80) & (d["STOCH_D"].shift(1) >= d["STOCH_K"].shift(1)) )
         if "StochRSI 超卖反转（K<20→上穿）" in chosen_blocks and "StochRSI_K" in d.columns:
-conds.append( shift_cross_up(d["StochRSI_K"], pd.Series(20.0, index=d.index)) )
+            conds.append( shift_cross_up(d["StochRSI_K"], pd.Series(20.0, index=d.index)) )
         if "CCI<-100 反转做多" in chosen_blocks and "CCI" in d.columns:
-conds.append( shift_cross_up(d["CCI"], pd.Series(-100.0, index=d.index)) )
+            conds.append( shift_cross_up(d["CCI"], pd.Series(-100.0, index=d.index)) )
         if "OBV 上升（OBV 斜率>0）" in chosen_blocks and "OBV" in d.columns:
-conds.append(d["OBV"].diff() > 0)
+            conds.append(d["OBV"].diff() > 0)
         if "PSAR 多头（价>PSAR）" in chosen_blocks and "PSAR" in d.columns:
-conds.append(d["Close"] > d["PSAR"])
+            conds.append(d["Close"] > d["PSAR"])
         if "KDJ 金叉（K>D & K<20）" in chosen_blocks and all(c in d.columns for c in ["KDJ_K","KDJ_D"]):
-conds.append( (d["KDJ_K"] > d["KDJ_D"]) & (d["KDJ_K"] < 20) )
-
+            conds.append( (d["KDJ_K"] > d["KDJ_D"]) & (d["KDJ_K"] < 20) )
+    
         if not conds:
-return e, pd.Series(False, index=d.index)  # 无选择
-
+            return e, pd.Series(False, index=d.index)  # 无选择
+    
         if "AND" in logic:
-e = conds[0]
+            e = conds[0]
             for c in conds[1:]:
-e = e & c
+                e = e & c
         elif "OR" in logic:
-e = conds[0]
+            e = conds[0]
             for c in conds[1:]:
-e = e | c
+                e = e | c
         else:  # MAJORITY
-# 计算满足条件的数量
-cond_count = sum(1 for c in conds if c.any())
-e = cond_count > len(conds) / 2
-
-# 反向提示（用于可选的反向退出）
-rev = ~e
-return e.fillna(False), rev.fillna(False)
-
+            # 计算满足条件的数量
+            cond_count = sum(1 for c in conds if c.any())
+            e = cond_count > len(conds) / 2
+    
+        # 反向提示（用于可选的反向退出）
+        rev = ~e
+        return e.fillna(False), rev.fillna(False)
+    
     def _guess_bar_per_year(interval_sel: str):
-# 粗略推断年化换算基数
+        # 粗略推断年化换算基数
         if interval_sel in ["1m","3m","5m","15m","30m"]:
-m = {"1m":525600, "3m":175200, "5m":105120, "15m":35040, "30m":17520}
-return m.get(interval_sel, 17520)
+            m = {"1m":525600, "3m":175200, "5m":105120, "15m":35040, "30m":17520}
+            return m.get(interval_sel, 17520)
         if interval_sel in ["1H","2H","4H","6H","12H"]:
-h = {"1H":8760, "2H":4380, "4H":2190, "6H":1460, "12H":730}
-return h.get(interval_sel, 8760)
+            h = {"1H":8760, "2H":4380, "4H":2190, "6H":1460, "12H":730}
+            return h.get(interval_sel, 8760)
         if interval_sel in ["1D","1d"]:
-return 365
+            return 365
         if interval_sel in ["1W","1w","1wk"]:
-return 52
+            return 52
         if interval_sel in ["1M","1mo"]:
-return 12
-return 252  # 默认交易日
-
+            return 12
+        return 252  # 默认交易日
+    
     def backtest_combo(df):
-d = df.copy().dropna().copy()
+        d = df.copy().dropna().copy()
         if d.empty:
-return None
-
-entry_sig, rev_hint = _block_signal(d)
+            return None
+    
+        entry_sig, rev_hint = _block_signal(d)
         if side == "做空":
-entry_sig = entry_sig  # 做空构建：使用相同触发，方向为-1
-entry_idx = np.where(entry_sig.values)[0]
-
-pos = pd.Series(0, index=d.index, dtype=float)
-in_pos = False
-side_mult = 1 if side == "做多" else -1
-entry_price = None
-entry_bar = None
-atr_series = d["ATR"] if "ATR" in d.columns else (d["Close"].pct_change().rolling(14).std()*d["Close"])
-
-trades = []
+            entry_sig = entry_sig  # 做空构建：使用相同触发，方向为-1
+        entry_idx = np.where(entry_sig.values)[0]
+    
+        pos = pd.Series(0, index=d.index, dtype=float)
+        in_pos = False
+        side_mult = 1 if side == "做多" else -1
+        entry_price = None
+        entry_bar = None
+        atr_series = d["ATR"] if "ATR" in d.columns else (d["Close"].pct_change().rolling(14).std()*d["Close"])
+    
+        trades = []
         for i in range(len(d)):
             if not in_pos:
                 if entry_sig.iat[i]:
-in_pos = True
-entry_bar = i
-entry_price = float(d["Close"].iat[i])
-pos.iat[i] = side_mult
-# else remain 0
+                    in_pos = True
+                    entry_bar = i
+                    entry_price = float(d["Close"].iat[i])
+                    pos.iat[i] = side_mult
+                # else remain 0
             else:
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
-pos.iat[i] = side_mult
-# 退出判定
-exit_flag = False
+                pos.iat[i] = side_mult
+                # 退出判定
+                exit_flag = False
                 if min_hold and entry_bar is not None and (i - entry_bar) < int(min_hold):
-exit_flag = False
+                    exit_flag = False
                 else:
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
                     if use_exit_flip and rev_hint.iat[i]:
-exit_flag = True
+                        exit_flag = True
                     if use_atr_stop and (not np.isnan(atr_series.iat[i])):
-atrv = float(atr_series.iat[i])
-sl = entry_price - side_mult*atr_sl_mult*atrv
-tp = entry_price + side_mult*atr_tp_mult*atrv
-price_i = float(d["Close"].iat[i])
+                        atrv = float(atr_series.iat[i])
+                        sl = entry_price - side_mult*atr_sl_mult*atrv
+                        tp = entry_price + side_mult*atr_tp_mult*atrv
+                        price_i = float(d["Close"].iat[i])
                         if (side_mult==1 and (price_i<=sl or price_i>=tp)) or (side_mult==-1 and (price_i>=sl or price_i<=tp)):
-exit_flag = True
+                            exit_flag = True
                 if exit_flag:
-exit_price = float(d["Close"].iat[i])
-ret = (exit_price/entry_price-1.0)*side_mult
-trades.append(ret)
-in_pos = False
-entry_price = None
-entry_bar = None
-pos.iat[i] = 0
-
-# 若最后仍持仓，以最后收盘结算
+                    exit_price = float(d["Close"].iat[i])
+                    ret = (exit_price/entry_price-1.0)*side_mult
+                    trades.append(ret)
+                    in_pos = False
+                    entry_price = None
+                    entry_bar = None
+                    pos.iat[i] = 0
+    
+        # 若最后仍持仓，以最后收盘结算
         if in_pos and entry_price is not None:
-exit_price = float(d["Close"].iat[-1])
-ret = (exit_price/entry_price-1.0)*side_mult
-trades.append(ret)
-
-ret_series = d["Close"].pct_change().fillna(0.0)
-strat_ret = ret_series * pos.shift(1).fillna(0.0)
-equity = (1+strat_ret).cumprod()
-
-# 统计指标
-trades = pd.Series(trades, dtype=float)
-win_rate = float((trades>0).mean()) if len(trades)>0 else 0.0
-total_return = float(equity.iat[-1]/equity.iat[0]-1.0) if len(equity)>1 else 0.0
-roll_max = equity.cummax()
-mdd = float(((roll_max - equity)/roll_max).max()) if len(equity)>0 else 0.0
-
-# 年化与 Sharpe
-bars_per_year = _guess_bar_per_year(interval)
-avg_ret = strat_ret.mean()
-vol_ret = strat_ret.std()
+            exit_price = float(d["Close"].iat[-1])
+            ret = (exit_price/entry_price-1.0)*side_mult
+            trades.append(ret)
+    
+        ret_series = d["Close"].pct_change().fillna(0.0)
+        strat_ret = ret_series * pos.shift(1).fillna(0.0)
+        equity = (1+strat_ret).cumprod()
+    
+        # 统计指标
+        trades = pd.Series(trades, dtype=float)
+        win_rate = float((trades>0).mean()) if len(trades)>0 else 0.0
+        total_return = float(equity.iat[-1]/equity.iat[0]-1.0) if len(equity)>1 else 0.0
+        roll_max = equity.cummax()
+        mdd = float(((roll_max - equity)/roll_max).max()) if len(equity)>0 else 0.0
+    
+        # 年化与 Sharpe
+        bars_per_year = _guess_bar_per_year(interval)
+        avg_ret = strat_ret.mean()
+        vol_ret = strat_ret.std()
         if vol_ret and vol_ret>0:
-sharpe = (avg_ret/vol_ret) * math.sqrt(bars_per_year)
+            sharpe = (avg_ret/vol_ret) * math.sqrt(bars_per_year)
         else:
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
-sharpe = 0.0
-cagr = (equity.iat[-1] ** (bars_per_year/max(1, len(equity))) - 1.0) if len(equity)>1 else 0.0
-
-return {
-"equity": equity,
-"pos": pos,
-"trades": trades,
-"win_rate": win_rate,
-"total_return": total_return,
-"mdd": mdd,
-"sharpe": sharpe,
-"cagr": cagr,
-"trades_count": int(len(trades))
-}
-
-res = backtest_combo(dfi)
+            sharpe = 0.0
+        cagr = (equity.iat[-1] ** (bars_per_year/max(1, len(equity))) - 1.0) if len(equity)>1 else 0.0
+    
+        return {
+            "equity": equity,
+            "pos": pos,
+            "trades": trades,
+            "win_rate": win_rate,
+            "total_return": total_return,
+            "mdd": mdd,
+            "sharpe": sharpe,
+            "cagr": cagr,
+            "trades_count": int(len(trades))
+        }
+    
+    res = backtest_combo(dfi)
     if res is None:
-
+        st.warning("所选构件不足以生成信号，请至少选择一个构件，并确保相关指标已在左侧勾选。")
     else:
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
-c1, c2, c3, c4, c5 = st.columns(5)
-c1.metric("胜率", f"{res['win_rate']*100:.2f}%")
-c2.metric("累计收益", f"{res['total_return']*100:.2f}%")
-c3.metric("最大回撤", f"{res['mdd']*100:.2f}%")
-c4.metric("Sharpe", f"{res['sharpe']:.2f}")
-c5.metric("交易次数", str(res['trades_count']))
-fig_c = go.Figure()
-fig_c.add_trace(go.Scatter(x=res["equity"].index, y=res["equity"].values, mode="lines", name="组合策略净值"))
-fig_c.update_layout(height=320, xaxis_rangeslider_visible=False)
-st.plotly_chart(fig_c, use_container_width=True, config={'scrollZoom': True, 'responsive': True, 'displaylogo': False})
+        c1, c2, c3, c4, c5 = st.columns(5)
+        c1.metric("胜率", f"{res['win_rate']*100:.2f}%")
+        c2.metric("累计收益", f"{res['total_return']*100:.2f}%")
+        c3.metric("最大回撤", f"{res['mdd']*100:.2f}%")
+        c4.metric("Sharpe", f"{res['sharpe']:.2f}")
+        c5.metric("交易次数", str(res['trades_count']))
+        fig_c = go.Figure()
+        fig_c.add_trace(go.Scatter(x=res["equity"].index, y=res["equity"].values, mode="lines", name="组合策略净值"))
+        fig_c.update_layout(height=320, xaxis_rangeslider_visible=False)
+        st.plotly_chart(fig_c, use_container_width=True, config={'scrollZoom': True, 'responsive': True, 'displaylogo': False})
         if len(res["trades"])>0:
-st.plotly_chart(px.histogram(res["trades"], nbins=20, title="单笔收益分布（组合策略）", config={'scrollZoom': True, 'responsive': True, 'displaylogo': False}), use_container_width=True)
+            st.plotly_chart(px.histogram(res["trades"], nbins=20, title="单笔收益分布（组合策略）", config={'scrollZoom': True, 'responsive': True, 'displaylogo': False}), use_container_width=True)
         else:
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
-descriptions.append("")
-long_signals.append("")
-short_signals.append("")
+            st.info("组合策略暂无闭合交易样本。")
+            
