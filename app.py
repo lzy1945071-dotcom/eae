@@ -278,7 +278,7 @@ def load_yf(symbol: str, interval_sel: str):
 def load_router(source, symbol, interval_sel, api_base=""):
     # 使用refresh_counter确保每次刷新都重新加载数据
     _ = st.session_state.refresh_counter  # 确保这个函数在refresh_counter变化时重新运行
-    
+
     if source == "CoinGecko（免API）":
         return load_coingecko_ohlc_robust(symbol, interval_sel)
     elif source == "TokenInsight API 模式（可填API基址）":
@@ -367,7 +367,7 @@ try:
             out["PSAR"] = ps.psar()
 except Exception:
             out["PSAR"] = np.nan
-            
+
     # ===== 新增KDJ指标 =====
     if use_kdj:
         # 计算KDJ指标
@@ -386,50 +386,50 @@ dfi = add_indicators(df).dropna(how="all")
 def detect_signals(df):
     """检测各种交易信号"""
     signals = pd.DataFrame(index=df.index)
-    
+
     # MA交叉信号
     if "MA20" in df.columns and "MA50" in df.columns:
         signals["MA_Cross"] = np.where(
-            (df["MA20"] > df["MA50"]) & (df["MA20"].shift(1) <= df["MA50"].shift(1)), 
-            "Buy", 
+            (df["MA20"] > df["MA50"]) & (df["MA20"].shift(1) <= df["MA50"].shift(1)),
+            "Buy",
             np.where(
-                (df["MA20"] < df["MA50"]) & (df["MA20"].shift(1) >= df["MA50"].shift(1)), 
-                "Sell", 
+                (df["MA20"] < df["MA50"]) & (df["MA20"].shift(1) >= df["MA50"].shift(1)),
+                "Sell",
                 None
             )
         )
-    
+
     # MACD信号
     if all(c in df.columns for c in ["MACD","MACD_signal"]):
         signals["MACD_Cross"] = np.where(
-            (df["MACD"] > df["MACD_signal"]) & (df["MACD"].shift(1) <= df["MACD_signal"].shift(1)), 
-            "Buy", 
+            (df["MACD"] > df["MACD_signal"]) & (df["MACD"].shift(1) <= df["MACD_signal"].shift(1)),
+            "Buy",
             np.where(
-                (df["MACD"] < df["MACD_signal"]) & (df["MACD"].shift(1) >= df["MACD_signal"].shift(1)), 
-                "Sell", 
+                (df["MACD"] < df["MACD_signal"]) & (df["MACD"].shift(1) >= df["MACD_signal"].shift(1)),
+                "Sell",
                 None
             )
         )
-    
+
     # RSI超买超卖信号
     if "RSI" in df.columns:
         signals["RSI_Overbought"] = np.where(df["RSI"] > 70, "Sell", None)
         signals["RSI_Oversold"] = np.where(df["RSI"] < 30, "Buy", None)
-    
+
     # KDJ信号
     if all(c in df.columns for c in ["KDJ_K","KDJ_D"]):
         signals["KDJ_Cross"] = np.where(
-            (df["KDJ_K"] > df["KDJ_D"]) & (df["KDJ_K"].shift(1) <= df["KDJ_D"].shift(1)), 
-            "Buy", 
+            (df["KDJ_K"] > df["KDJ_D"]) & (df["KDJ_K"].shift(1) <= df["KDJ_D"].shift(1)),
+            "Buy",
             np.where(
-                (df["KDJ_K"] < df["KDJ_D"]) & (df["KDJ_K"].shift(1) >= df["KDJ_D"].shift(1)), 
-                "Sell", 
+                (df["KDJ_K"] < df["KDJ_D"]) & (df["KDJ_K"].shift(1) >= df["KDJ_D"].shift(1)),
+                "Sell",
                 None
             )
         )
         signals["KDJ_Overbought"] = np.where(df["KDJ_K"] > 80, "Sell", None)
         signals["KDJ_Oversold"] = np.where(df["KDJ_K"] < 20, "Buy", None)
-    
+
     return signals
 
 # 检测信号
@@ -441,7 +441,7 @@ def calculate_support_resistance(df, window=20):
     # 近期高点和低点
     recent_high = df["High"].rolling(window=window).max()
     recent_low = df["Low"].rolling(window=window).min()
-    
+
     # 使用布林带作为动态支撑阻力
     if "BOLL_U" in df.columns and "BOLL_L" in df.columns:
         resistance = df["BOLL_U"]
@@ -450,7 +450,7 @@ def calculate_support_resistance(df, window=20):
         # 如果没有布林带，使用近期高点和低点
         resistance = recent_high
         support = recent_low
-    
+
     return support, resistance
 
 support, resistance = calculate_support_resistance(dfi)
@@ -471,7 +471,7 @@ volume_col = _cand
         if volume_col is None:
             dfi["_VolumeForHover"] = 0.0
 volume_col = "_VolumeForHover"
-    
+
         # Signal column optional
         _has_signal = "Signal" in dfi.columns
         _time_str = dfi.index.astype(str)
@@ -488,7 +488,7 @@ volume_col = "_VolumeForHover"
 except Exception as _e:
         # fallback: minimal hovertext
         dfi["hovertext"] = "Time: " + dfi.index.astype(str)
-    
+
     # --- Determine volume column for hover ---
 volume_col = None
     for cand in ["Volume", "volume", "vol", "Vol", "amt"]:
@@ -498,7 +498,7 @@ volume_col = cand
     if volume_col is None:
         dfi["_VolumeForHover"] = 0.0
 volume_col = "_VolumeForHover"
-    
+
     fig.add_trace(
         go.Candlestick(x=dfi.index,
             open=dfi["Open"],
@@ -506,185 +506,185 @@ volume_col = "_VolumeForHover"
             low=dfi["Low"],
             close=dfi["Close"],
             name="K线",
-            
+
             )
     )
-    
-    
+
+
     # 添加均线 - 默认隐藏
     if use_ma:
         ma_colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"]
         for i, p in enumerate(parse_int_list(ma_periods_text)):
             col = f"MA{p}"
-            if col in dfi.columns: 
+            if col in dfi.columns:
                 fig.add_trace(go.Scatter(
-                    x=dfi.index, 
-                    y=dfi[col], 
-                    mode="lines", 
-                    name=col, 
+                    x=dfi.index,
+                    y=dfi[col],
+                    mode="lines",
+                    name=col,
                     yaxis="y",
                     line=dict(color=ma_colors[i % len(ma_colors)]),
                     visible="legendonly"  # 默认隐藏
                 ))
-    
+
     if use_ema:
         ema_colors = ["#3366cc", "#dc3912", "#ff9900", "#109618", "#990099", "#0099c6", "#dd4477", "#66aa00", "#b82e2e", "#316395"]
         for i, p in enumerate(parse_int_list(ema_periods_text)):
             col = f"EMA{p}"
-            if col in dfi.columns: 
+            if col in dfi.columns:
                 fig.add_trace(go.Scatter(
-                    x=dfi.index, 
-                    y=dfi[col], 
-                    mode="lines", 
-                    name=col, 
+                    x=dfi.index,
+                    y=dfi[col],
+                    mode="lines",
+                    name=col,
                     yaxis="y",
                     line=dict(color=ema_colors[i % len(ema_colors)]),
                     visible="legendonly"  # 默认隐藏
                 ))
-    
+
     if use_boll:
         boll_colors = ["#3d9970", "#ff4136", "#85144b"]
         for i, (col, nm) in enumerate([("BOLL_U","BOLL 上轨"),("BOLL_M","BOLL 中轨"),("BOLL_L","BOLL 下轨")]):
-            if col in dfi.columns: 
+            if col in dfi.columns:
                 fig.add_trace(go.Scatter(
-                    x=dfi.index, 
-                    y=dfi[col], 
-                    mode="lines", 
-                    name=nm, 
+                    x=dfi.index,
+                    y=dfi[col],
+                    mode="lines",
+                    name=nm,
                     yaxis="y",
                     line=dict(color=boll_colors[i % len(boll_colors)]),
                     visible="legendonly"  # 默认隐藏
                 ))
-    
+
     # 添加支撑阻力线 - 默认隐藏
     fig.add_trace(go.Scatter(
-        x=dfi.index, 
-        y=support, 
-        mode="lines", 
-        name="支撑", 
-        line=dict(color="#00cc96", dash="dash"), 
+        x=dfi.index,
+        y=support,
+        mode="lines",
+        name="支撑",
+        line=dict(color="#00cc96", dash="dash"),
         yaxis="y",
         visible="legendonly"  # 默认隐藏
     ))
     fig.add_trace(go.Scatter(
-        x=dfi.index, 
-        y=resistance, 
-        mode="lines", 
-        name="阻力", 
-        line=dict(color="#ef553b", dash="dash"), 
+        x=dfi.index,
+        y=resistance,
+        mode="lines",
+        name="阻力",
+        line=dict(color="#ef553b", dash="dash"),
         yaxis="y",
         visible="legendonly"  # 默认隐藏
     ))
-    
+
     # 添加买卖信号 - 默认隐藏
     buy_signals = signals[signals.isin(["Buy"]).any(axis=1)]
     sell_signals = signals[signals.isin(["Sell"]).any(axis=1)]
-    
+
     if not buy_signals.empty:
         buy_points = dfi.loc[buy_signals.index]
         fig.add_trace(go.Scatter(
-            x=buy_points.index, 
-            y=buy_points["Low"] * 0.99, 
-            mode="markers", 
+            x=buy_points.index,
+            y=buy_points["Low"] * 0.99,
+            mode="markers",
             name="买入信号",
             marker=dict(symbol="triangle-up", size=10, color="#00cc96"),
             visible="legendonly"  # 默认隐藏
         ))
-    
+
     if not sell_signals.empty:
         sell_points = dfi.loc[sell_signals.index]
         fig.add_trace(go.Scatter(
-            x=sell_points.index, 
-            y=sell_points["High"] * 1.01, 
-            mode="markers", 
+            x=sell_points.index,
+            y=sell_points["High"] * 1.01,
+            mode="markers",
             name="卖出信号",
             marker=dict(symbol="triangle-down", size=10, color="#ef553b"),
             visible="legendonly"  # 默认隐藏
         ))
-    
+
     # 添加成交量 - 默认显示
     vol_colors = np.where(dfi["Close"] >= dfi["Open"], "rgba(38,166,91,0.7)", "rgba(239,83,80,0.7)")
     if "Volume" in dfi.columns and not dfi["Volume"].isna().all():
         fig.add_trace(go.Bar(
-            x=dfi.index, 
-            y=dfi["Volume"], 
-            name="成交量", 
-            yaxis="y2", 
+            x=dfi.index,
+            y=dfi["Volume"],
+            name="成交量",
+            yaxis="y2",
             marker_color=vol_colors,
             opacity=0.7
         ))
-    
+
     # 添加MACD副图 - 默认显示
     if use_macd and all(c in dfi.columns for c in ["MACD","MACD_signal","MACD_hist"]):
         fig.add_trace(go.Scatter(
-            x=dfi.index, 
-            y=dfi["MACD"], 
-            name="MACD", 
-            yaxis="y3", 
+            x=dfi.index,
+            y=dfi["MACD"],
+            name="MACD",
+            yaxis="y3",
             mode="lines",
             line=dict(color="#3366cc")
         ))
         fig.add_trace(go.Scatter(
-            x=dfi.index, 
-            y=dfi["MACD_signal"], 
-            name="Signal", 
-            yaxis="y3", 
+            x=dfi.index,
+            y=dfi["MACD_signal"],
+            name="Signal",
+            yaxis="y3",
             mode="lines",
             line=dict(color="#ff9900")
         ))
         fig.add_trace(go.Bar(
-            x=dfi.index, 
-            y=dfi["MACD_hist"], 
-            name="MACD 柱", 
-            yaxis="y3", 
+            x=dfi.index,
+            y=dfi["MACD_hist"],
+            name="MACD 柱",
+            yaxis="y3",
             opacity=0.4,
             marker_color=np.where(dfi["MACD_hist"] >= 0, "#00cc96", "#ef553b")
         ))
-    
+
     # 添加RSI副图 - 默认隐藏
     if use_rsi and "RSI" in dfi.columns:
         fig.add_trace(go.Scatter(
-            x=dfi.index, 
-            y=dfi["RSI"], 
-            name="RSI", 
-            yaxis="y4", 
+            x=dfi.index,
+            y=dfi["RSI"],
+            name="RSI",
+            yaxis="y4",
             mode="lines",
             line=dict(color="#17becf")
         ))
         # 添加RSI超买超卖线
         fig.add_hline(y=70, line_dash="dash", line_color="red", yref="y4", opacity=0.5)
         fig.add_hline(y=30, line_dash="dash", line_color="green", yref="y4", opacity=0.5)
-    
+
     # 添加KDJ副图 - 默认隐藏
     if use_kdj and all(c in dfi.columns for c in ["KDJ_K","KDJ_D","KDJ_J"]):
         fig.add_trace(go.Scatter(
-            x=dfi.index, 
-            y=dfi["KDJ_K"], 
-            name="KDJ_K", 
-            yaxis="y5", 
+            x=dfi.index,
+            y=dfi["KDJ_K"],
+            name="KDJ_K",
+            yaxis="y5",
             mode="lines",
             line=dict(color="#ff7f0e")# 默认隐藏
         ))
         fig.add_trace(go.Scatter(
-            x=dfi.index, 
-            y=dfi["KDJ_D"], 
-            name="KDJ_D", 
-            yaxis="y5", 
+            x=dfi.index,
+            y=dfi["KDJ_D"],
+            name="KDJ_D",
+            yaxis="y5",
             mode="lines",
             line=dict(color="#1f77b4")# 默认隐藏
         ))
         fig.add_trace(go.Scatter(
-            x=dfi.index, 
-            y=dfi["KDJ_J"], 
-            name="KDJ_J", 
-            yaxis="y5", 
+            x=dfi.index,
+            y=dfi["KDJ_J"],
+            name="KDJ_J",
+            yaxis="y5",
             mode="lines",
             line=dict(color="#2ca02c")# 默认隐藏
         ))
         # 添加KDJ超买超卖线
         fig.add_hline(y=80, line_dash="dash", line_color="red", yref="y5", opacity=0.5)
         fig.add_hline(y=20, line_dash="dash", line_color="green", yref="y5", opacity=0.5)
-    
+
     # 更新图表布局
     # ===== 斐波那契回撤（默认隐藏，图例中点击开启；组点击=全显/全隐） =====
     # 侧边栏设置：自动/手动 以及lookback
@@ -722,7 +722,7 @@ volume_col = "_VolumeForHover"
 
     # 组点击行为：点击一个成员即可全显/全隐
     fig.update_layout(legend=dict(groupclick="togglegroup"))
-    
+
     fig.update_layout(
         hovermode='x unified',
         xaxis=dict(showspikes=True, spikemode='across', spikesnap='cursor', showline=True),
@@ -750,15 +750,15 @@ volume_col = "_VolumeForHover"
         "displayModeBar": True,
         "displaylogo": False
     })
-    
+
 if page_clean == "策略":
     # ========================= 实时策略建议（增强版） =========================
     st.markdown("---")
     st.subheader("🧭 实时策略建议（非投资建议）")
-    
+
     last = dfi.dropna().iloc[-1]
     price = float(last["Close"])
-    
+
     # 1) 趋势/动能评分
     score = 0; reasons = []
     ma20 = dfi["MA20"].iloc[-1] if "MA20" in dfi.columns else np.nan
@@ -768,42 +768,42 @@ if page_clean == "策略":
             score += 2; reasons.append("MA20>MA50 且价在MA20上，多头趋势")
         elif ma20 < ma50 and price < ma20:
             score -= 2; reasons.append("MA20<MA50 且价在MA20下，空头趋势")
-    
+
     if use_macd and all(c in dfi.columns for c in ["MACD","MACD_signal","MACD_hist"]):
         if last["MACD"] > last["MACD_signal"] and last["MACD_hist"] > 0:
             score += 2; reasons.append("MACD 金叉且柱为正")
         elif last["MACD"] < last["MACD_signal"] and last["MACD_hist"] < 0:
             score -= 2; reasons.append("MACD 死叉且柱为负")
-    
+
     if use_rsi and "RSI" in dfi.columns:
         if last["RSI"] >= 70:
             score -= 1; reasons.append("RSI 过热（≥70）")
         elif last["RSI"] <= 30:
             score += 1; reasons.append("RSI 超卖（≤30）")
-    
+
     # KDJ信号评分
     if use_kdj and all(c in dfi.columns for c in ["KDJ_K","KDJ_D"]):
         if last["KDJ_K"] > last["KDJ_D"] and last["KDJ_K"] < 30:
             score += 1; reasons.append("KDJ 金叉且处于超卖区")
         elif last["KDJ_K"] < last["KDJ_D"] and last["KDJ_K"] > 70:
             score -= 1; reasons.append("KDJ 死叉且处于超买区")
-    
+
     decision = "观望"
     if score >= 3: decision = "买入/加仓"
     elif score <= -2: decision = "减仓/离场"
-    
+
     # 2) 历史百分位（最近窗口）
     hist_window = min(len(dfi), 365)
     recent_close = dfi["Close"].iloc[-hist_window:]
     pct_rank = float((recent_close <= price).mean()) * 100 if hist_window > 1 else 50.0
-    
+
     # 3) 支撑位/压力位（最近N根）
     N = 20
     recent_high = dfi["High"].iloc[-N:]
     recent_low = dfi["Low"].iloc[-N:]
     support_zone = (recent_low.min(), dfi["Close"].iloc[-N:].min())
     resist_zone = (dfi["Close"].iloc[-N:].max(), recent_high.max())
-    
+
     # 4) ATR 止盈止损
     if use_atr and "ATR" in dfi.columns and not np.isnan(last["ATR"]):
         atr_val = float(last["ATR"])
@@ -811,19 +811,19 @@ if page_clean == "策略":
         atr_val = float(dfi["Close"].pct_change().rolling(14).std().iloc[-1] * price)
     tp = price + 2.0*atr_val if decision != "减仓/离场" else price - 2.0*atr_val
     sl = price - 1.2*atr_val if decision != "减仓/离场" else price + 1.2*atr_val
-    
+
     hint = "区间中位；按信号执行为主。"
     if pct_rank <= 25:
         hint = "低位区间（≤25%）→ 倾向逢低布局，关注止损与量能确认。"
     elif pct_rank >= 75:
         hint = "高位区间（≥75%）→ 谨慎追高，关注回撤与量能衰减。"
-    
+
     c1,c2,c3,c4 = st.columns(4)
     c1.metric("最新价", f"{price:,.4f}")
     c2.metric("建议", decision)
     c3.metric("评分", str(score))
     c4.metric("ATR", f"{atr_val:,.4f}")
-    
+
     st.write("**依据**：", "；".join(reasons) if reasons else "信号不明确，建议观望。")
     st.info(
         f"价格百分位：**{pct_rank:.1f}%**｜"
@@ -832,7 +832,7 @@ if page_clean == "策略":
         f"建议止损：**{sl:,.4f}** ｜ 建议止盈：**{tp:,.4f}**\n\n"
         f"提示：{hint}"
     )
-    
+
     # ========================= 胜率统计（简版） =========================
     def simple_backtest(df):
         df = df.dropna().copy()
@@ -859,7 +859,7 @@ if page_clean == "策略":
         win_rate = float((pnl>0).mean()) if len(pnl)>0 else 0.0
         roll_max = equity.cummax(); mdd = float(((roll_max - equity)/roll_max).max()) if len(equity)>0 else 0.0
         return equity, pnl, win_rate, mdd
-    
+
     st.markdown("---")
     st.subheader("📈 策略胜率与净值")
     equity, pnl, win_rate, mdd = simple_backtest(dfi)
@@ -876,7 +876,7 @@ if page_clean == "策略":
         st.plotly_chart(px.histogram(pnl, nbins=20, title="单笔收益分布", config={'scrollZoom': True, 'responsive': True, 'displaylogo': False}), use_container_width=True)
     else:
         st.info("暂无可统计的交易样本。")
-    
+
     # ========================= 风控面板（结果） =========================
     st.markdown("---")
     st.subheader("🛡️ 风控面板（结果）")
@@ -891,7 +891,7 @@ if page_clean == "策略":
     rc2.metric("建议仓位数量", f"{position_size:,.6f}")
     rc3.metric("单笔风险金额", f"{risk_amount:,.2f}")
     st.caption("仓位公式：头寸 = 账户总值 × 单笔风险% ÷ (止损幅度 × 杠杆)")
-    
+
     # ========================= 组合风险暴露（按波动率配比） =========================
     st.subheader("📊 组合风险暴露建议（低波动高权重）")
     def get_close_series(sym):
@@ -907,7 +907,7 @@ try:
             return d["Close"].rename(sym) if not d.empty else None
 except Exception:
             return None
-    
+
     series_list = []
     for s in combo_symbols:
         se = get_close_series(s)
@@ -922,11 +922,11 @@ except Exception:
         st.plotly_chart(px.pie(w_df, names="symbol", values="weight", title="建议权重", config={'scrollZoom': True, 'responsive': True, 'displaylogo': False}), use_container_width=True)
     else:
         st.info("组合标留空或数据不足。")
-    
+
     # ========================= 新增模块：多指标策略组合 & 绩效预测 =========================
     st.markdown("---")
     st.subheader("🧪 组合策略评估（多指标合成｜非投资建议）")
-    
+
     with st.expander("选择策略构件（多选）与规则"):
         blocks = [
             "MA20>MA50（趋势做多）",
@@ -960,15 +960,15 @@ except Exception:
         use_atr_stop = st.checkbox("启用 ATR 止损/止盈", True)
         atr_sl_mult = st.number_input("ATR 止损倍数", min_value=0.1, value=1.5, step=0.1)
         atr_tp_mult = st.number_input("ATR 止盈倍数", min_value=0.1, value=3.0, step=0.1)
-    
+
     def _block_signal(df):
         """根据所选构件返回布尔信号 DataFrame 的 'entry' 与 'exit_hint'（用于反向退出）。"""
         d = df.copy()
         e = pd.Series(False, index=d.index)
-    
+
         def shift_cross_up(a, b):
             return (a > b) & (a.shift(1) <= b.shift(1))
-    
+
         # 各构件
         conds = []
         if "MA20>MA50（趋势做多）" in chosen_blocks and all(c in d.columns for c in ["MA20","MA50"]):
@@ -1003,10 +1003,10 @@ except Exception:
             conds.append(d["Close"] > d["PSAR"])
         if "KDJ 金叉（K>D & K<20）" in chosen_blocks and all(c in d.columns for c in ["KDJ_K","KDJ_D"]):
             conds.append( (d["KDJ_K"] > d["KDJ_D"]) & (d["KDJ_K"] < 20) )
-    
+
         if not conds:
             return e, pd.Series(False, index=d.index)  # 无选择
-    
+
         if "AND" in logic:
             e = conds[0]
             for c in conds[1:]:
@@ -1019,11 +1019,11 @@ except Exception:
             # 计算满足条件的数量
             cond_count = sum(1 for c in conds if c.any())
             e = cond_count > len(conds) / 2
-    
+
         # 反向提示（用于可选的反向退出）
         rev = ~e
         return e.fillna(False), rev.fillna(False)
-    
+
     def _guess_bar_per_year(interval_sel: str):
         # 粗略推断年化换算基数
         if interval_sel in ["1m","3m","5m","15m","30m"]:
@@ -1039,24 +1039,24 @@ except Exception:
         if interval_sel in ["1M","1mo"]:
             return 12
         return 252  # 默认交易日
-    
+
     def backtest_combo(df):
         d = df.copy().dropna().copy()
         if d.empty:
             return None
-    
+
         entry_sig, rev_hint = _block_signal(d)
         if side == "做空":
             entry_sig = entry_sig  # 做空构建：使用相同触发，方向为-1
         entry_idx = np.where(entry_sig.values)[0]
-    
+
         pos = pd.Series(0, index=d.index, dtype=float)
         in_pos = False
         side_mult = 1 if side == "做多" else -1
         entry_price = None
         entry_bar = None
         atr_series = d["ATR"] if "ATR" in d.columns else (d["Close"].pct_change().rolling(14).std()*d["Close"])
-    
+
         trades = []
         for i in range(len(d)):
             if not in_pos:
@@ -1090,24 +1090,24 @@ except Exception:
                     entry_price = None
                     entry_bar = None
                     pos.iat[i] = 0
-    
+
         # 若最后仍持仓，以最后收盘结算
         if in_pos and entry_price is not None:
             exit_price = float(d["Close"].iat[-1])
             ret = (exit_price/entry_price-1.0)*side_mult
             trades.append(ret)
-    
+
         ret_series = d["Close"].pct_change().fillna(0.0)
         strat_ret = ret_series * pos.shift(1).fillna(0.0)
         equity = (1+strat_ret).cumprod()
-    
+
         # 统计指标
         trades = pd.Series(trades, dtype=float)
         win_rate = float((trades>0).mean()) if len(trades)>0 else 0.0
         total_return = float(equity.iat[-1]/equity.iat[0]-1.0) if len(equity)>1 else 0.0
         roll_max = equity.cummax()
         mdd = float(((roll_max - equity)/roll_max).max()) if len(equity)>0 else 0.0
-    
+
         # 年化与 Sharpe
         bars_per_year = _guess_bar_per_year(interval)
         avg_ret = strat_ret.mean()
@@ -1117,7 +1117,7 @@ except Exception:
         else:
             sharpe = 0.0
         cagr = (equity.iat[-1] ** (bars_per_year/max(1, len(equity))) - 1.0) if len(equity)>1 else 0.0
-    
+
         return {
             "equity": equity,
             "pos": pos,
@@ -1129,7 +1129,7 @@ except Exception:
             "cagr": cagr,
             "trades_count": int(len(trades))
         }
-    
+
     res = backtest_combo(dfi)
     if res is None:
         st.warning("所选构件不足以生成信号，请至少选择一个构件，并确保相关指标已在左侧勾选。")
