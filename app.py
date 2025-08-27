@@ -386,6 +386,8 @@ dfi = add_indicators(df).dropna(how="all")
 def detect_signals(df):
     """检测各种交易信号"""
     signals = pd.DataFrame(index=df.index)
+long_signals = signals  # ✅ 做多信号列表
+short_signals = ["✅" if s=="" else "" for s in signals]  # ✅ 简单示例：做空与做多相反，可根据实际逻辑调整
     
     # MA交叉信号
     if "MA20" in df.columns and "MA50" in df.columns:
@@ -931,34 +933,6 @@ if page_clean == "策略":
         st.markdown(f"<h2 style='color:green; text-align:center;'>做多评分: <b>{float(long_score):.1f}</b></h2>", unsafe_allow_html=True)
     with colg2:
         st.markdown(f"<h2 style='color:red; text-align:center;'>做空评分: <b>{float(short_score):.1f}</b></h2>", unsafe_allow_html=True)
-
-    
-    # ================= 顶部关键信息显示 =================
-    try:
-        checked_indicators = "<br>".join(cl_df[cl_df["状态"]=="✅"]["指标"].tolist())
-    except Exception:
-        checked_indicators = ""
-
-    try:
-        current_price_val = float(current_price)
-    except Exception:
-        current_price_val = None
-
-    try:
-        atr_val = float(atr_value)
-    except Exception:
-        atr_val = None
-
-    # 推导策略建议
-    if long_score > short_score:
-        strategy_advice = "做多"
-        advice_color = "green"
-    elif short_score > long_score:
-        strategy_advice = "做空"
-        advice_color = "red"
-    else:
-        strategy_advice = "观望"
-        advice_color = "gray"
 
     
 
