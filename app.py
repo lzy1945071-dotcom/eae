@@ -456,6 +456,26 @@ def calculate_support_resistance(df, window=20):
 support, resistance = calculate_support_resistance(dfi)
 
 if page_clean == "K线图":
+    # ========== 斐波那契交互功能 ==========
+    import plotly.graph_objects as go
+
+    # 在图例中添加一个“斐波那契”trace用于开关
+    fibo_toggle = go.Scatter(x=[None], y=[None], mode="lines", name="斐波那契",
+                             line=dict(color="purple", width=2, dash="dot"))
+    fig.add_trace(fibo_toggle, row=1, col=1)
+
+    # 自动取最近100根K线的高低点并绘制斐波那契线
+    lookback = 100
+    sub_df = dfi.tail(lookback)
+    fib_high = sub_df['High'].max()
+    fib_low = sub_df['Low'].min()
+    diff = fib_high - fib_low
+    fib_levels = [0.236, 0.382, 0.5, 0.618, 0.786]
+    for lvl in fib_levels:
+        price = fib_high - diff * lvl
+        fig.add_hline(y=price, line=dict(color="purple", dash="dot"),
+                      row=1, col=1, annotation_text=f"Fib {lvl*100:.1f}%")
+
     # ========================= TradingView 风格图表 =========================
     st.subheader(f"🕯️ K线（{symbol} / {source} / {interval}）")
     fig = go.Figure()
