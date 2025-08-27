@@ -206,7 +206,7 @@ def _cg_days_from_interval(sel: str) -> str:
 @st.cache_data(ttl=900, hash_funcs={"_thread.RLock": lambda _: None})
 def load_coingecko_ohlc_robust(coin_id: str, interval_sel: str):
     days = _cg_days_from_interval(interval_sel)
-    try:
+try:
         url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/ohlc"
         r = requests.get(url, params={"vs_currency": "usd", "days": days}, timeout=20)
         if r.status_code == 200:
@@ -214,9 +214,9 @@ def load_coingecko_ohlc_robust(coin_id: str, interval_sel: str):
             if isinstance(arr, list) and len(arr) > 0:
                 rows = [(pd.to_datetime(x[0], unit="ms"), float(x[1]), float(x[2]), float(x[3]), float(x[4])) for x in arr]
                 return pd.DataFrame(rows, columns=["Date","Open","High","Low","Close"]).set_index("Date")
-    except Exception:
+except Exception:
         pass
-    try:
+try:
         url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart"
         params = {"vs_currency":"usd", "days": days if days != "max" else "365"}
         r = requests.get(url, params=params, timeout=20)
@@ -232,7 +232,7 @@ def load_coingecko_ohlc_robust(coin_id: str, interval_sel: str):
             ohlc = s.resample("1D").agg(["first","max","min","last"]).dropna()
             ohlc.columns = ["Open","High","Low","Close"]
             return ohlc
-    except Exception:
+except Exception:
         pass
     return pd.DataFrame()
 
@@ -240,7 +240,7 @@ def load_coingecko_ohlc_robust(coin_id: str, interval_sel: str):
 def load_tokeninsight_ohlc(api_base_url: str, coin_id: str, interval_sel: str):
     if not api_base_url:
         return load_coingecko_ohlc_robust(coin_id, interval_sel)
-    try:
+try:
         url = f"{api_base_url.rstrip('/')}/ohlc"
         r = requests.get(url, params={"symbol": coin_id, "period": "1d"}, timeout=15)
         r.raise_for_status()
@@ -248,7 +248,7 @@ def load_tokeninsight_ohlc(api_base_url: str, coin_id: str, interval_sel: str):
         if isinstance(data, list) and data:
             rows = [(pd.to_datetime(x[0], unit="ms"), float(x[1]), float(x[2]), float(x[3]), float(x[4])) for x in data]
             return pd.DataFrame(rows, columns=["Date","Open","High","Low","Close"]).set_index("Date")
-    except Exception:
+except Exception:
         pass
     return load_coingecko_ohlc_robust(coin_id, interval_sel)
 
@@ -297,10 +297,10 @@ if df.empty or not set(["Open","High","Low","Close"]).issubset(df.columns):
 
 # ========================= Indicators =========================
 def parse_int_list(text):
-    try:
+try:
         lst = [int(x.strip()) for x in text.split(",") if x.strip()]
         return [x for x in lst if x > 0]
-    except Exception:
+except Exception:
         return []
 
 def add_indicators(df):
@@ -362,10 +362,10 @@ def add_indicators(df):
         obv = ta.volume.OnBalanceVolumeIndicator(close=close, volume=vol)
         out["OBV"] = obv.on_balance_volume()
     if use_psar:
-        try:
+try:
             ps = ta.trend.PSARIndicator(high=high, low=low, close=close, step=float(psar_step), max_step=float(psar_max_step))
             out["PSAR"] = ps.psar()
-        except Exception:
+except Exception:
             out["PSAR"] = np.nan
             
     # ===== 新增KDJ指标 =====
@@ -461,16 +461,16 @@ if page_clean == "K线图":
 volume_col = "Volume" if "Volume" in dfi.columns else None
 fig = go.Figure()
     # --- Build hovertext for candlestick (keep original precision) ---
-    try:
+try:
         # choose volume column
-        volume_col = None
+volume_col = None
         for _cand in ["Volume","volume","vol","Vol","amt"]:
             if _cand in dfi.columns:
-                volume_col = _cand
+volume_col = _cand
                 break
         if volume_col is None:
             dfi["_VolumeForHover"] = 0.0
-            volume_col = "_VolumeForHover"
+volume_col = "_VolumeForHover"
     
         # Signal column optional
         _has_signal = "Signal" in dfi.columns
@@ -485,19 +485,19 @@ fig = go.Figure()
         )
         if _has_signal:
             dfi["hovertext"] = dfi["hovertext"] + "<br>Signal: " + dfi["Signal"].astype(str)
-    except Exception as _e:
+except Exception as _e:
         # fallback: minimal hovertext
         dfi["hovertext"] = "Time: " + dfi.index.astype(str)
     
     # --- Determine volume column for hover ---
-    volume_col = None
+volume_col = None
     for cand in ["Volume", "volume", "vol", "Vol", "amt"]:
         if cand in dfi.columns:
-            volume_col = cand
+volume_col = cand
             break
     if volume_col is None:
         dfi["_VolumeForHover"] = 0.0
-        volume_col = "_VolumeForHover"
+volume_col = "_VolumeForHover"
     
     fig.add_trace(
         go.Candlestick(x=dfi.index,
@@ -895,7 +895,7 @@ if page_clean == "策略":
     # ========================= 组合风险暴露（按波动率配比） =========================
     st.subheader("📊 组合风险暴露建议（低波动高权重）")
     def get_close_series(sym):
-        try:
+try:
             if source == "CoinGecko（免API）":
                 d = load_coingecko_ohlc_robust(sym, interval)
             elif source == "TokenInsight API 模式（可填API基址）":
@@ -905,7 +905,7 @@ if page_clean == "策略":
             else:
                 d = load_yf(sym, interval)
             return d["Close"].rename(sym) if not d.empty else None
-        except Exception:
+except Exception:
             return None
     
     series_list = []
