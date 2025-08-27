@@ -931,6 +931,7 @@ if page_clean == "策略":
         fig_long = go.Figure(go.Indicator(
             mode="gauge+number",
             value=float(long_score),
+            number={'font': {'size': 48, 'color': 'black'}},  # 大号加粗字体
             title={'text': "做多评分"},
             gauge={
                 'axis': {'range': [0, 100]},
@@ -947,6 +948,7 @@ if page_clean == "策略":
         fig_short = go.Figure(go.Indicator(
             mode="gauge+number",
             value=float(short_score),
+            number={'font': {'size': 48, 'color': 'black'}},  # 大号加粗字体
             title={'text': "做空评分"},
             gauge={
                 'axis': {'range': [0, 100]},
