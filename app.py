@@ -97,6 +97,9 @@ elif source in ["OKX 公共行情（免API）", "OKX API（可填API基址）"]:
     combo_symbols = st.sidebar.multiselect("组合标（可多选，默认留空）", ["BTC-USDT","ETH-USDT","SOL-USDT","XRP-USDT","DOGE-USDT"], default=[])
     interval = st.sidebar.selectbox("K线周期", ["1m","3m","5m","15m","30m","1H","2H","4H","6H","12H","1D","1W","1M"], index=3)
 else:
+    descriptions.append("")
+    long_signals.append("")
+    short_signals.append("")
 descriptions.append("")
 long_signals.append("")
 short_signals.append("")
@@ -302,6 +305,9 @@ def load_router(source, symbol, interval_sel, api_base=""):
         base = api_base if source == "OKX API（可填API基址）" else ""
         return load_okx_public(symbol, interval_sel, base_url=base)
     else:
+        descriptions.append("")
+        long_signals.append("")
+        short_signals.append("")
     descriptions.append("")
     long_signals.append("")
     short_signals.append("")
@@ -419,6 +425,9 @@ for ind in indicators:
             long_signals.append("")
             short_signals.append("✅")
         else:
+            descriptions.append("")
+            long_signals.append("")
+            short_signals.append("")
         descriptions.append("")
         long_signals.append("")
         short_signals.append("")
@@ -433,6 +442,9 @@ for ind in indicators:
             long_signals.append("")
             short_signals.append("✅")
         else:
+            descriptions.append("")
+            long_signals.append("")
+            short_signals.append("")
         descriptions.append("")
         long_signals.append("")
         short_signals.append("")
@@ -447,6 +459,9 @@ for ind in indicators:
             long_signals.append("")
             short_signals.append("✅")
         else:
+            descriptions.append("")
+            long_signals.append("")
+            short_signals.append("")
         descriptions.append("")
         long_signals.append("")
         short_signals.append("")
@@ -461,6 +476,9 @@ for ind in indicators:
             long_signals.append("")
             short_signals.append("✅")
         else:
+            descriptions.append("")
+            long_signals.append("")
+            short_signals.append("")
         descriptions.append("")
         long_signals.append("")
         short_signals.append("")
@@ -475,12 +493,18 @@ for ind in indicators:
             long_signals.append("")
             short_signals.append("✅")
         else:
+            descriptions.append("")
+            long_signals.append("")
+            short_signals.append("")
         descriptions.append("")
         long_signals.append("")
         short_signals.append("")
             long_signals.append("")
             short_signals.append("")
     else:
+        descriptions.append("")
+        long_signals.append("")
+        short_signals.append("")
     descriptions.append("")
     long_signals.append("")
     short_signals.append("")
@@ -548,6 +572,9 @@ def calculate_support_resistance(df, window=20):
         resistance = df["BOLL_U"]
         support = df["BOLL_L"]
     else:
+        descriptions.append("")
+        long_signals.append("")
+        short_signals.append("")
     descriptions.append("")
     long_signals.append("")
     short_signals.append("")
@@ -798,6 +825,9 @@ if page_clean == "K线图":
             fib_high = st.number_input("自定义高点", min_value=0.0, value=float(dfi["High"].max()), key="fib_high")
             fib_low = st.number_input("自定义低点", min_value=0.0, value=float(dfi["Low"].min()), key="fib_low")
         else:
+            descriptions.append("")
+            long_signals.append("")
+            short_signals.append("")
         descriptions.append("")
         long_signals.append("")
         short_signals.append("")
@@ -1142,6 +1172,9 @@ if page_clean == "策略":
     if use_atr and "ATR" in dfi.columns and not np.isnan(last["ATR"]):
         atr_val = float(last["ATR"])
     else:
+        descriptions.append("")
+        long_signals.append("")
+        short_signals.append("")
     descriptions.append("")
     long_signals.append("")
     short_signals.append("")
@@ -1173,6 +1206,9 @@ if page_clean == "策略":
             short_cond = (df["MA20"]<df["MA50"]) & (df["MACD"]<df["MACD_signal"])
             sig = np.where(long_cond, 1, np.where(short_cond, -1, 0))
         else:
+            descriptions.append("")
+            long_signals.append("")
+            short_signals.append("")
         descriptions.append("")
         long_signals.append("")
         short_signals.append("")
@@ -1209,6 +1245,9 @@ if page_clean == "策略":
     if len(pnl)>0:
         st.plotly_chart(px.histogram(pnl, nbins=20, title="单笔收益分布", config={'scrollZoom': True, 'responsive': True, 'displaylogo': False}), use_container_width=True)
     else:
+        descriptions.append("")
+        long_signals.append("")
+        short_signals.append("")
     descriptions.append("")
     long_signals.append("")
     short_signals.append("")
@@ -1240,6 +1279,9 @@ if page_clean == "策略":
             elif source in ["OKX 公共行情（免API）", "OKX API（可填API基址）"]:
                 d = load_okx_public(sym, interval, base_url=api_base if "OKX API" in source else "")
             else:
+                descriptions.append("")
+                long_signals.append("")
+                short_signals.append("")
             descriptions.append("")
             long_signals.append("")
             short_signals.append("")
@@ -1261,6 +1303,9 @@ if page_clean == "策略":
         w_df = pd.DataFrame({"symbol": weights.index, "weight": weights.values})
         st.plotly_chart(px.pie(w_df, names="symbol", values="weight", title="建议权重", config={'scrollZoom': True, 'responsive': True, 'displaylogo': False}), use_container_width=True)
     else:
+        descriptions.append("")
+        long_signals.append("")
+        short_signals.append("")
     descriptions.append("")
     long_signals.append("")
     short_signals.append("")
@@ -1410,6 +1455,9 @@ if page_clean == "策略":
                     pos.iat[i] = side_mult
                 # else remain 0
             else:
+                descriptions.append("")
+                long_signals.append("")
+                short_signals.append("")
             descriptions.append("")
             long_signals.append("")
             short_signals.append("")
@@ -1419,6 +1467,9 @@ if page_clean == "策略":
                 if min_hold and entry_bar is not None and (i - entry_bar) < int(min_hold):
                     exit_flag = False
                 else:
+                    descriptions.append("")
+                    long_signals.append("")
+                    short_signals.append("")
                 descriptions.append("")
                 long_signals.append("")
                 short_signals.append("")
@@ -1464,6 +1515,9 @@ if page_clean == "策略":
         if vol_ret and vol_ret>0:
             sharpe = (avg_ret/vol_ret) * math.sqrt(bars_per_year)
         else:
+            descriptions.append("")
+            long_signals.append("")
+            short_signals.append("")
         descriptions.append("")
         long_signals.append("")
         short_signals.append("")
@@ -1486,6 +1540,9 @@ if page_clean == "策略":
     if res is None:
         
     else:
+        descriptions.append("")
+        long_signals.append("")
+        short_signals.append("")
     descriptions.append("")
     long_signals.append("")
     short_signals.append("")
@@ -1502,6 +1559,9 @@ if page_clean == "策略":
         if len(res["trades"])>0:
             st.plotly_chart(px.histogram(res["trades"], nbins=20, title="单笔收益分布（组合策略）", config={'scrollZoom': True, 'responsive': True, 'displaylogo': False}), use_container_width=True)
         else:
+            descriptions.append("")
+            long_signals.append("")
+            short_signals.append("")
         descriptions.append("")
         long_signals.append("")
         short_signals.append("")
