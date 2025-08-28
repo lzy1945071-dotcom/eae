@@ -45,8 +45,6 @@ if auto_refresh:
     refresh_interval = st.sidebar.number_input("自动刷新间隔(秒)", min_value=1, value=60, step=1)
     st_autorefresh(interval=refresh_interval * 1000, key="auto_refresh")
 
-
-
 # ========================= Sidebar: ① 数据来源与标的 =========================
 st.sidebar.header("① 数据来源与标的")
 source = st.sidebar.selectbox(
@@ -191,9 +189,9 @@ with col3:
     if st.session_state.show_checkmark:
         st.success("✅ 数据已刷新")
         if st.session_state.last_refresh_time:
-            st.caption(f"最后刷新: {st.session_state.last_refresh_time}")
+st.caption(f"最后刷新: {st.session_state.last_refresh_time}")
     elif st.session_state.last_refresh_time:
-        st.caption(f"最后刷新: {st.session_state.last_refresh_time}")
+st.caption(f"最后刷新: {st.session_state.last_refresh_time}")
 
 # ========================= Data Loaders =========================
 def _cg_days_from_interval(sel: str) -> str:
@@ -215,7 +213,6 @@ def load_coingecko_ohlc_robust(coin_id: str, interval_sel: str):
                 rows = [(pd.to_datetime(x[0], unit="ms"), float(x[1]), float(x[2]), float(x[3]), float(x[4])) for x in arr]
                 return pd.DataFrame(rows, columns=["Date","Open","High","Low","Close"]).set_index("Date")
     except Exception:
-        pass
     try:
         url = f"https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart"
         params = {"vs_currency":"usd", "days": days if days != "max" else "365"}
@@ -233,7 +230,6 @@ def load_coingecko_ohlc_robust(coin_id: str, interval_sel: str):
             ohlc.columns = ["Open","High","Low","Close"]
             return ohlc
     except Exception:
-        pass
     return pd.DataFrame()
 
 @st.cache_data(ttl=900, hash_funcs={"_thread.RLock": lambda _: None})
@@ -249,7 +245,6 @@ def load_tokeninsight_ohlc(api_base_url: str, coin_id: str, interval_sel: str):
             rows = [(pd.to_datetime(x[0], unit="ms"), float(x[1]), float(x[2]), float(x[3]), float(x[4])) for x in data]
             return pd.DataFrame(rows, columns=["Date","Open","High","Low","Close"]).set_index("Date")
     except Exception:
-        pass
     return load_coingecko_ohlc_robust(coin_id, interval_sel)
 
 @st.cache_data(ttl=900, hash_funcs={"_thread.RLock": lambda _: None})
@@ -985,8 +980,7 @@ for name, key, desc in indicators_list:
 
 cl_df_display = pd.DataFrame(table_data, columns=["指标","信号","说明"])
 import pandas as pd
-    
-    st.caption("评分系统基于当前价相对多项指标的位置与信号，仅供参考，非投资建议。")
+st.caption("评分系统基于当前价相对多项指标的位置与信号，仅供参考，非投资建议。")
 
     
     last = dfi.dropna().iloc[-1]
@@ -1123,7 +1117,7 @@ import pandas as pd
     rc1.metric("建议持仓名义价值", f"{position_value:,.2f}")
     rc2.metric("建议仓位数量", f"{position_size:,.6f}")
     rc3.metric("单笔风险金额", f"{risk_amount:,.2f}")
-    st.caption("仓位公式：头寸 = 账户总值 × 单笔风险% ÷ (止损幅度 × 杠杆)")
+st.caption("仓位公式：头寸 = 账户总值 × 单笔风险% ÷ (止损幅度 × 杠杆)")
     
     # ========================= 组合风险暴露（按波动率配比） =========================
     st.subheader("📊 组合风险暴露建议（低波动高权重）")
