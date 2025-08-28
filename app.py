@@ -1,5 +1,214 @@
 # app.py — Legend Quant Terminal Elite v3 FIX10 (TV风格 + 多指标 + 实时策略增强)
 import streamlit as st
+
+# ====================== 新增：实时策略指标信息表格（始终包含所有指标） ======================
+def build_indicator_signal_table(dfi):
+    """
+    输入：dfi（包含各类技术指标列的 DataFrame），要求包含最后一行（最新）
+    输出：用于展示的 DataFrame，统一包含：RSI、MACD、KDJ、StochRSI、ADX/DMI、CCI、MFI、OBV、ATR、EMA200、VWAP、布林带
+    - 信号文本自动追加（利多）/（利空）/（中性）
+    - 布林带规则：突破上轨（利多）、跌破下轨（利空）、中轨附近/带内震荡（中性）
+    """
+    import numpy as np
+    import pandas as pd
+
+    if dfi is None or len(dfi) == 0:
+        return pd.DataFrame(columns=["指标","数值/关键","信号","说明"])
+
+    last = dfi.iloc[-1]
+    price = float(last.get("Close", np.nan))
+
+    def fmt(x, nd=2):
+        try:
+            if x is None or (isinstance(x, float) and np.isnan(x)):
+                return ""
+            return f"{float(x):.{nd}f}"
+        except Exception:
+            return str(x)
+
+    rows = []
+
+    # ----- RSI -----
+    rsi = last.get("RSI", np.nan)
+    if not np.isnan(rsi):
+        if rsi >= 70:
+            sig = "超买（利空）"
+            expl = "RSI≥70，警惕回撤或高位震荡"
+        elif rsi <= 30:
+            sig = "超卖（利多）"
+            expl = "RSI≤30，存在反弹机会"
+        else:
+            sig = "中性"
+            expl = "RSI位于30-70区间，震荡为主"
+        rows.append(["RSI", fmt(rsi,1), "RSI="+fmt(rsi,1), sig + "；" + expl])
+
+    # ----- MACD -----
+    macd = last.get("MACD", np.nan)
+    macd_sig = last.get("MACD_signal", np.nan)
+    macd_hist = last.get("MACD_hist", np.nan)
+    if not any(np.isnan(x) for x in [macd, macd_sig, macd_hist]):
+        if macd > macd_sig and macd_hist > 0:
+            sig = "金叉（利多）"
+            expl = "MACD在信号线上方且柱体为正，动能偏强"
+        elif macd < macd_sig and macd_hist < 0:
+            sig = "死叉（利空）"
+            expl = "MACD在信号线下方且柱体为负，动能偏弱"
+        else:
+            sig = "中性"
+            expl = "多空动能分歧，谨慎看待"
+        rows.append(["MACD", f"DIFF={fmt(macd,3)}, DEA={fmt(macd_sig,3)}, Hist={fmt(macd_hist,3)}", "交叉/柱体", sig + "；" + expl])
+
+    # ----- KDJ -----
+    k = last.get("KDJ_K", np.nan)
+    d = last.get("KDJ_D", np.nan)
+    j = last.get("KDJ_J", np.nan)
+    if not np.isnan(k) and not np.isnan(d):
+        if k > d:
+            cross = "金叉（利多）"
+        elif k < d:
+            cross = "死叉（利空）"
+        else:
+            cross = "中性"
+        level = "超买" if max(k,d) >= 80 else ("超卖" if min(k,d) <= 20 else "中性")
+        if level == "超买":
+            level += "（利空）"
+        elif level == "超卖":
+            level += "（利多）"
+        rows.append(["KDJ", f"K={fmt(k,1)}, D={fmt(d,1)}, J={fmt(j,1)}", "交叉/区间", f"{cross}；{level}"])
+
+    # ----- StochRSI -----
+    srsi_k = last.get("StochRSI_K", np.nan)
+    srsi_d = last.get("StochRSI_D", np.nan)
+    if not np.isnan(srsi_k) and not np.isnan(srsi_d):
+        if srsi_k > srsi_d:
+            cross = "金叉（利多）"
+        elif srsi_k < srsi_d:
+            cross = "死叉（利空）"
+        else:
+            cross = "中性"
+        zone = "超买" if max(srsi_k, srsi_d) >= 80 else ("超卖" if min(srsi_k, srsi_d) <= 20 else "中性")
+        if zone == "超买":
+            zone += "（利空）"
+        elif zone == "超卖":
+            zone += "（利多）"
+        rows.append(["StochRSI", f"%K={fmt(srsi_k,1)}, %D={fmt(srsi_d,1)}", "交叉/区间", f"{cross}；{zone}"])
+
+    # ----- ADX / DMI -----
+    adx = last.get("ADX", np.nan)
+    dip = last.get("DIP", np.nan)
+    din = last.get("DIN", np.nan)
+    if not any(np.isnan(x) for x in [adx, dip, din]):
+        trend = "趋势强（>25）" if adx >= 25 else "趋势弱（<25）"
+        if dip > din:
+            dir_sig = "多头占优（利多）"
+        elif dip < din:
+            dir_sig = "空头占优（利空）"
+        else:
+            dir_sig = "中性"
+        rows.append(["ADX/DMI", f"ADX={fmt(adx,1)}, +DI={fmt(dip,1)}, -DI={fmt(din,1)}", "强度/方向", f"{trend}；{dir_sig}"])
+
+    # ----- CCI -----
+    cci = last.get("CCI", np.nan)
+    if not np.isnan(cci):
+        if cci > 100:
+            sig = "强势（利多）"
+        elif cci < -100:
+            sig = "弱势（利空）"
+        else:
+            sig = "中性"
+        rows.append(["CCI", fmt(cci,1), "区间", sig])
+
+    # ----- MFI -----
+    mfi = last.get("MFI", np.nan)
+    if not np.isnan(mfi):
+        if mfi >= 80:
+            sig = "超买（利空）"
+        elif mfi <= 20:
+            sig = "超卖（利多）"
+        else:
+            sig = "中性"
+        rows.append(["MFI", fmt(mfi,1), "资金流/区间", sig])
+
+    # ----- OBV -----
+    obv = last.get("OBV", np.nan)
+    if not np.isnan(obv):
+        # 方向以最近几根 OBV 斜率近似判断
+        try:
+            obv_series = dfi["OBV"].dropna().iloc[-5:]
+            slope = float(obv_series.diff().mean())
+            if slope > 0:
+                sig = "上升（利多）"
+            elif slope < 0:
+                sig = "下降（利空）"
+            else:
+                sig = "中性"
+        except Exception:
+            sig = "中性"
+        rows.append(["OBV", fmt(obv,0), "方向", sig])
+
+    # ----- ATR -----
+    atr = last.get("ATR", np.nan)
+    if not np.isnan(atr):
+        # 相对均值
+        atr_mean = float(dfi["ATR"].dropna().rolling(100).mean().iloc[-1]) if "ATR" in dfi.columns and dfi["ATR"].notna().any() else np.nan
+        if not np.isnan(atr_mean):
+            if atr > atr_mean:
+                sig = "波动放大（利空）"
+            elif atr < atr_mean:
+                sig = "波动收敛（利多）"
+            else:
+                sig = "中性"
+            desc = f"ATR={fmt(atr,3)} / 均值≈{fmt(atr_mean,3)}"
+        else:
+            sig = "中性"
+            desc = f"ATR={fmt(atr,3)}"
+        rows.append(["ATR", desc, "波动", sig])
+
+    # ----- EMA200 -----
+    ema200 = last.get("EMA200", np.nan) if "EMA200" in dfi.columns else np.nan
+    if not np.isnan(price) and not np.isnan(ema200):
+        if price > ema200:
+            sig = "价格在上方（利多）"
+        elif price < ema200:
+            sig = "价格在下方（利空）"
+        else:
+            sig = "中性"
+        rows.append(["EMA200", fmt(ema200,2), "上/下方", sig])
+
+    # ----- VWAP -----
+    vwap = last.get("VWAP", np.nan)
+    if not np.isnan(vwap) and not np.isnan(price):
+        if price > vwap:
+            sig = "价格在上方（利多）"
+        elif price < vwap:
+            sig = "价格在下方（利空）"
+        else:
+            sig = "中性"
+        rows.append(["VWAP", fmt(vwap,2), "上/下方", sig])
+
+    # ----- 布林带（BOLL） -----
+    bu = last.get("BOLL_U", np.nan)
+    bm = last.get("BOLL_M", np.nan)
+    bl = last.get("BOLL_L", np.nan)
+    if not any(np.isnan(x) for x in [bu, bm, bl]) and not np.isnan(price):
+        if price > bu:
+            sig = "突破上轨（利多）"
+            expl = "可能延续强势，但注意乖离"
+        elif price < bl:
+            sig = "跌破下轨（利空）"
+            expl = "可能延续弱势，但注意超跌反抽"
+        elif abs(price - bm) / bm <= 0.01:
+            sig = "中轨附近（中性）"
+            expl = "围绕中轨震荡，方向不明"
+        else:
+            sig = "带内震荡（中性）"
+            expl = "位于布林带内，上下空间均有限"
+        rows.append(["布林带", f"上={fmt(bu,2)}, 中={fmt(bm,2)}, 下={fmt(bl,2)}", "轨道/价位", f"{sig}；{expl}"])
+
+    df_view = pd.DataFrame(rows, columns=["指标","数值/关键","信号","说明"])
+    return df_view
+
+
 import pandas as pd
 import numpy as np
 import requests
@@ -959,6 +1168,15 @@ if page_clean == "策略":
         title="评分构成雷达图"
     )
     st.plotly_chart(fig_radar, use_container_width=True)
+
+    # === 实时策略指标信息表格（固定全指标，不依赖侧边栏开关） ===
+    try:
+        ind_table = build_indicator_signal_table(dfi)
+        st.subheader("实时策略指标表格（全指标）")
+        st.dataframe(ind_table, use_container_width=True)
+    except Exception as e:
+        st.info(f"指标表格生成遇到问题：{e}")
+
     
     # ---------- 指标清单（到达信号打勾） ----------
     checklist = []
@@ -996,34 +1214,32 @@ if page_clean == "策略":
         checklist.append(("价格<VWAP（做空）", mark(not np.isnan(snap.get("VWAP", np.nan)) and price < snap["VWAP"]),
                           f"VWAP={snap['VWAP']:.2f}"))
 
-    # 显示为表格（HTML渲染 + 说明列图标）
+    # 显示为表格
     import pandas as pd
-    import html
-
-    
 def _append_icon(row):
+    import html
     label = str(row["指标/条件"])
     desc = str(row["说明"])
     desc = html.escape(desc)
 
-    bull_keys = ["做多","利多","金叉","上穿","上破","突破","之上","在上方"]
-    bear_keys = ["做空","利空","死叉","下穿","下破","跌破","之下","在下方","超买"]
+    bull_keys = ["做多", "利多", "金叉", "上穿", "上破", "突破", "之上", "在上方"]
+    bear_keys = ["做空", "利空", "死叉", "下穿", "下破", "跌破", "之下", "在下方", "超买"]
+    neutral_keys = ["震荡", "中性", "中轨", "持平", "带内"]
 
-    if any(k in label for k in bull_keys):
+    if any(k in label for k in bull_keys) or any(k in desc for k in bull_keys):
         return f"{desc} 🟢"
-    if any(k in label for k in bear_keys):
+    if any(k in label for k in bear_keys) or any(k in desc for k in bear_keys):
         return f"{desc} 🔴"
+    if any(k in label for k in neutral_keys) or any(k in desc for k in neutral_keys):
+        return f"{desc} ⚪"
     return desc
 
-
     cl_df = pd.DataFrame(checklist, columns=["指标/条件","信号","说明"])
-    cl_df["说明"] = cl_df.apply(_append_icon, axis=1)
+    st.dataframe(cl_df, use_container_width=True)
+    
+    st.caption("评分系统基于当前价相对多项指标的位置与信号，仅供参考，非投资建议。")
 
-    st.markdown(
-        cl_df.to_html(escape=False, index=False),
-        unsafe_allow_html=True
-    )
-
+    
     last = dfi.dropna().iloc[-1]
     price = float(last["Close"])
     
