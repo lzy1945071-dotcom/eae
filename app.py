@@ -1001,6 +1001,12 @@ if page_clean == "策略":
     import pandas as pd
 import html
     cl_df = pd.DataFrame(checklist, columns=["指标/条件","信号","说明"])
+    cl_df["说明"] = cl_df.apply(_append_icon, axis=1)
+
+    st.markdown(
+        cl_df.to_html(escape=False, index=False),
+        unsafe_allow_html=True
+    )
     # 为“说明”列追加红/绿三角图标
     def _append_icon(row):
     label = str(row["指标/条件"])
