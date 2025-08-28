@@ -1129,8 +1129,12 @@ if page_clean == "策略":
         st.dataframe(ind_table, use_container_width=True)
 
 # === 提取利多/利空指标数量 ===
-bull_count = (signal_df['信号'] == '利多').sum() if '信号' in signal_df.columns else 0
-bear_count = (signal_df['信号'] == '利空').sum() if '信号' in signal_df.columns else 0
+try:
+    bull_count = (signal_df['信号'] == '利多').sum() if '信号' in signal_df.columns else 0
+    bear_count = (signal_df['信号'] == '利空').sum() if '信号' in signal_df.columns else 0
+except Exception as e:
+    bull_count, bear_count = 0, 0
+
     except Exception as e:
         st.info(f"指标表格生成遇到问题：{e}")
 
