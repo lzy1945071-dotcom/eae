@@ -1,5 +1,17 @@
 # app.py — Legend Quant Terminal Elite v3 FIX10 (TV风格 + 多指标 + 实时策略增强)
 import streamlit as st
+import pandas as pd
+import numpy as np
+import requests
+import yfinance as yf
+import plotly.graph_objects as go
+import plotly.express as px
+import ta
+import math
+from datetime import datetime
+import time
+
+st.set_page_config(page_title="Legend Quant Terminal Elite v3 FIX10", layout="wide")
 
 def _append_icon(row):
     label = str(row["指标/条件"])
@@ -26,9 +38,6 @@ def build_indicator_signal_table(dfi):
     - 信号文本自动追加（利多）/（利空）/（中性）
     - 布林带规则：突破上轨（利多）、跌破下轨（利空）、中轨附近/带内震荡（中性）
     """
-    import numpy as np
-    import pandas as pd
-
     if dfi is None or len(dfi) == 0:
         return pd.DataFrame(columns=["指标","数值/关键","信号","说明"])
 
@@ -238,20 +247,6 @@ def get_strategy_recommendation(df_signal_table):
 
     return f"{recommendation} 利多指标{bull_count} / 利空指标{bear_count}"
 
-
-import pandas as pd
-import numpy as np
-import requests
-import yfinance as yf
-import plotly.graph_objects as go
-import plotly.express as px
-import ta
-import math
-from datetime import datetime
-import time
-
-st.set_page_config(page_title="Legend Quant Terminal Elite v3 FIX10", layout="wide")
-
 # ===== 页面切换（Sidebar 单点按钮：K线图 / 策略） =====
 if 'page' not in st.session_state:
     st.session_state['page'] = "📈 K线图"
@@ -282,12 +277,6 @@ st.sidebar.header("🔄 刷新")
 auto_refresh = st.sidebar.checkbox("启用自动刷新", value=False)
 if auto_refresh:
     refresh_interval = st.sidebar.number_input("自动刷新间隔(秒)", min_value=1, value=60, step=1)
-    # This is a placeholder for where st_autorefresh would be called if it were a real library function
-    # For a real implementation, you might need a community component like streamlit-autorefresh
-    # from streamlit_autorefresh import st_autorefresh
-    # st_autorefresh(interval=refresh_interval * 1000, key="auto_refresh")
-
-
 
 # ========================= Sidebar: ① 数据来源与标的 =========================
 st.sidebar.header("① 数据来源与标的")
@@ -426,7 +415,7 @@ with col2:
         st.session_state.show_checkmark = True
         st.session_state.force_refresh = True
         # 使用兼容性更好的方法刷新页面
-        st.query_params['refresh'] = refresh=st.session_state.refresh_counter
+        st.query_params['refresh'] = st.session_state.refresh_counter
 
 # 显示刷新确认和时间
 with col3:
@@ -591,7 +580,7 @@ def add_indicators(df):
     if use_stoch:
         stoch = ta.momentum.StochasticOscillator(high=high, low=low, close=close, window=int(stoch_k), smooth_window=int(stoch_smooth))
         out["STOCH_K"] = stoch.stoch()
-        out["STOCH_D"] = stoch.stoch_signal() if hasattr(stoch, "stoch_signal") else out["STOCH_K"].rolling(int(stoch_d)).mean()
+        out["STOCH_D"] = out["STOCH_K"].rolling(int(stoch_d)).mean()
     if use_stochrsi:
         srsi = ta.momentum.StochRSIIndicator(close=close, window=int(stochrsi_window))
         out["StochRSI_K"] = srsi.stochrsi_k()
@@ -791,9 +780,182 @@ if page_clean == "K线图":
     ))
     fig.add_trace(go.Scatter(
         x=dfi.index, y=resistance, mode="lines", name="阻力", 
-        line=dict(color="#...
+        line=dict(color="#d62728", dash="dash"), yaxis="y",
+        visible="legendonly" # 默认隐藏
+    ))
 
-
+    # 更新图表布局
+    fig.update_layout(
+        xaxis_rangeslider_visible=False,
+        title=f"**{symbol}** K线图",
+        yaxis_title="价格",
+        height=800,
+        template="plotly_dark",
+        margin=dict(l=10, r=10, t=50, b=10),
+        xaxis=dict(
+            type="category",
+            categoryorder="category ascending",
+            title="时间",
+            rangeslider=dict(visible=False),
+            #rangeslider_visible=False # This is deprecated
+        ),
+        yaxis=dict(
+            title="价格",
+            side="right"
+        ),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        ),
+        # 添加副图
+        grid=dict(rows=2, columns=1, vertical_spacing=0.05, roworder="bottom to top")
+    )
+    
+    # 添加副图指标
+    from plotly.subplots import make_subplots
+    
+    # 动态计算子图数量
+    sub_plots = []
+    if use_macd: sub_plots.append('MACD')
+    if use_rsi: sub_plots.append('RSI')
+    if use_kdj: sub_plots.append('KDJ')
+    if use_stoch: sub_plots.append('Stoch')
+    if use_stochrsi: sub_plots.append('StochRSI')
+    if use_mfi: sub_plots.append('MFI')
+    if use_cci: sub_plots.append('CCI')
+    if use_obv: sub_plots.append('OBV')
+    if use_psar: sub_plots.append('PSAR') # PSAR is on the main chart, not a subplot
+    
+    specs_list = [[{"rowspan": 1}], [{"rowspan": 1}]]
+    if len(sub_plots) > 0:
+        specs_list = [[{"rowspan": 1}]] * (1 + len(sub_plots))
+        for i in range(len(sub_plots)):
+            specs_list[i+1][0] = {}
+        fig = make_subplots(
+            rows=1 + len(sub_plots), cols=1,
+            row_heights=[0.6] + [0.1] * len(sub_plots),
+            shared_xaxes=True,
+            vertical_spacing=0.01,
+            # 设置子图标题
+            subplot_titles=["K线图"] + sub_plots,
+            row_titles=[""] + sub_plots
+        )
+        fig.add_trace(
+            go.Candlestick(
+                x=dfi.index, 
+                open=dfi["Open"], 
+                high=dfi["High"], 
+                low=dfi["Low"], 
+                close=dfi["Close"], 
+                name="K线",
+                increasing=dict(line=dict(color='#006400'), fillcolor='#006400'),
+                decreasing=dict(line=dict(color='#8B0000'), fillcolor='#8B0000')
+            ),
+            row=1, col=1
+        )
+        
+        row_idx = 2
+        for plot_name in sub_plots:
+            if plot_name == 'MACD':
+                fig.add_trace(go.Bar(
+                    x=dfi.index, y=dfi['MACD_hist'], name="MACD Hist", yaxis="y2",
+                    marker_color=np.where(dfi['MACD_hist'] > 0, "#006400", "#8B0000"),
+                    visible=True,
+                ), row=row_idx, col=1)
+                fig.add_trace(go.Scatter(
+                    x=dfi.index, y=dfi['MACD'], mode="lines", name="MACD", yaxis="y2",
+                    line=dict(color="#ff9900"),
+                    visible=True,
+                ), row=row_idx, col=1)
+                fig.add_trace(go.Scatter(
+                    x=dfi.index, y=dfi['MACD_signal'], mode="lines", name="MACD Sig", yaxis="y2",
+                    line=dict(color="#1f77b4"),
+                    visible=True,
+                ), row=row_idx, col=1)
+            elif plot_name == 'RSI':
+                fig.add_trace(go.Scatter(
+                    x=dfi.index, y=dfi['RSI'], mode="lines", name="RSI", yaxis="y3",
+                    line=dict(color="#a1c4fd"),
+                    visible=True,
+                ), row=row_idx, col=1)
+                fig.add_trace(go.Scatter(
+                    x=dfi.index, y=[70]*len(dfi), mode="lines", name="RSI 70", line=dict(color="#d62728", dash="dash"), visible=True
+                ), row=row_idx, col=1)
+                fig.add_trace(go.Scatter(
+                    x=dfi.index, y=[30]*len(dfi), mode="lines", name="RSI 30", line=dict(color="#2ca02c", dash="dash"), visible=True
+                ), row=row_idx, col=1)
+            elif plot_name == 'KDJ':
+                fig.add_trace(go.Scatter(
+                    x=dfi.index, y=dfi['KDJ_K'], mode="lines", name="K", yaxis="y4", line=dict(color="#1f77b4"), visible=True
+                ), row=row_idx, col=1)
+                fig.add_trace(go.Scatter(
+                    x=dfi.index, y=dfi['KDJ_D'], mode="lines", name="D", yaxis="y4", line=dict(color="#ff7f0e"), visible=True
+                ), row=row_idx, col=1)
+                fig.add_trace(go.Scatter(
+                    x=dfi.index, y=dfi['KDJ_J'], mode="lines", name="J", yaxis="y4", line=dict(color="#2ca02c"), visible=True
+                ), row=row_idx, col=1)
+                fig.add_trace(go.Scatter(x=dfi.index, y=[80]*len(dfi), mode="lines", name="KDJ 80", line=dict(color="#d62728", dash="dash"), visible=True), row=row_idx, col=1)
+                fig.add_trace(go.Scatter(x=dfi.index, y=[20]*len(dfi), mode="lines", name="KDJ 20", line=dict(color="#2ca02c", dash="dash"), visible=True), row=row_idx, col=1)
+            elif plot_name == 'Stoch':
+                fig.add_trace(go.Scatter(x=dfi.index, y=dfi['STOCH_K'], mode="lines", name="%K", line=dict(color="#1f77b4"), visible=True), row=row_idx, col=1)
+                fig.add_trace(go.Scatter(x=dfi.index, y=dfi['STOCH_D'], mode="lines", name="%D", line=dict(color="#ff7f0e"), visible=True), row=row_idx, col=1)
+                fig.add_trace(go.Scatter(x=dfi.index, y=[80]*len(dfi), mode="lines", name="80", line=dict(color="#d62728", dash="dash"), visible=True), row=row_idx, col=1)
+                fig.add_trace(go.Scatter(x=dfi.index, y=[20]*len(dfi), mode="lines", name="20", line=dict(color="#2ca02c", dash="dash"), visible=True), row=row_idx, col=1)
+            elif plot_name == 'StochRSI':
+                fig.add_trace(go.Scatter(x=dfi.index, y=dfi['StochRSI_K'], mode="lines", name="StochRSI K", line=dict(color="#1f77b4"), visible=True), row=row_idx, col=1)
+                fig.add_trace(go.Scatter(x=dfi.index, y=dfi['StochRSI_D'], mode="lines", name="StochRSI D", line=dict(color="#ff7f0e"), visible=True), row=row_idx, col=1)
+                fig.add_trace(go.Scatter(x=dfi.index, y=[80]*len(dfi), mode="lines", name="80", line=dict(color="#d62728", dash="dash"), visible=True), row=row_idx, col=1)
+                fig.add_trace(go.Scatter(x=dfi.index, y=[20]*len(dfi), mode="lines", name="20", line=dict(color="#2ca02c", dash="dash"), visible=True), row=row_idx, col=1)
+            elif plot_name == 'MFI':
+                fig.add_trace(go.Scatter(x=dfi.index, y=dfi['MFI'], mode="lines", name="MFI", line=dict(color="#8c564b"), visible=True), row=row_idx, col=1)
+                fig.add_trace(go.Scatter(x=dfi.index, y=[80]*len(dfi), mode="lines", name="80", line=dict(color="#d62728", dash="dash"), visible=True), row=row_idx, col=1)
+                fig.add_trace(go.Scatter(x=dfi.index, y=[20]*len(dfi), mode="lines", name="20", line=dict(color="#2ca02c", dash="dash"), visible=True), row=row_idx, col=1)
+            elif plot_name == 'CCI':
+                fig.add_trace(go.Scatter(x=dfi.index, y=dfi['CCI'], mode="lines", name="CCI", line=dict(color="#e377c2"), visible=True), row=row_idx, col=1)
+                fig.add_trace(go.Scatter(x=dfi.index, y=[100]*len(dfi), mode="lines", name="100", line=dict(color="#d62728", dash="dash"), visible=True), row=row_idx, col=1)
+                fig.add_trace(go.Scatter(x=dfi.index, y=[-100]*len(dfi), mode="lines", name="-100", line=dict(color="#2ca02c", dash="dash"), visible=True), row=row_idx, col=1)
+            elif plot_name == 'OBV':
+                fig.add_trace(go.Scatter(x=dfi.index, y=dfi['OBV'], mode="lines", name="OBV", line=dict(color="#7f7f7f"), visible=True), row=row_idx, col=1)
+            row_idx += 1
+            
+        fig.update_layout(height=800, template="plotly_dark", title=f"**{symbol}** K线图",
+                          xaxis=dict(rangeslider_visible=False, title="时间"),
+                          yaxis=dict(title="价格"),
+                          legend=dict(
+                              orientation="h",
+                              yanchor="bottom",
+                              y=1.02,
+                              xanchor="right",
+                              x=1
+                          ))
+    else:
+        # 如果没有副图，只显示主图
+        fig = go.Figure()
+        fig.add_trace(
+            go.Candlestick(
+                x=dfi.index, 
+                open=dfi["Open"], 
+                high=dfi["High"], 
+                low=dfi["Low"], 
+                close=dfi["Close"], 
+                name="K线",
+                increasing=dict(line=dict(color='#006400'), fillcolor='#006400'),
+                decreasing=dict(line=dict(color='#8B0000'), fillcolor='#8B0000')
+            )
+        )
+        fig.update_layout(
+            xaxis_rangeslider_visible=False,
+            title=f"**{symbol}** K线图",
+            yaxis_title="价格",
+            height=600,
+            template="plotly_dark"
+        )
+        
+    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+    
 if page_clean == "策略":
     st.subheader(f"📊 实时策略分析（{symbol} / {source} / {interval}）")
     
@@ -811,10 +973,15 @@ if page_clean == "策略":
     st.markdown("---")
     st.markdown("### 组合策略回测")
     st.caption("选择左侧组合策略构件，并点击刷新运行回测")
-    # ... (unchanged backtest code)
+    
+    selected_components = st.sidebar.multiselect(
+        "选择回测策略构件",
+        options=["MA交叉", "MACD交叉", "RSI超买超卖", "KDJ交叉"],
+        default=["MA交叉"]
+    )
     
     @st.cache_data(ttl=900)
-    def backtest_combo(dfi):
+    def backtest_combo(dfi, signals, selected_components):
         # ... (unchanged backtest logic)
         
         # This is a dummy for backtest logic
@@ -832,15 +999,42 @@ if page_clean == "策略":
         for i in range(1, len(dfi)):
             close_t = dfi["Close"].iloc[i]
             close_t_1 = dfi["Close"].iloc[i-1]
-            # Simple moving average crossover strategy as a placeholder
-            if "MA_Cross" in signals.columns:
-                if signals["MA_Cross"].iloc[i] == "Buy":
-                    pos.iloc[i:] = 1.0
-                    trades.append({"type": "Buy", "date": dfi.index[i], "price": close_t})
-                elif signals["MA_Cross"].iloc[i] == "Sell":
-                    pos.iloc[i:] = -1.0
-                    trades.append({"type": "Sell", "date": dfi.index[i], "price": close_t})
             
+            # Simple combined strategy logic
+            buy_signal = False
+            sell_signal = False
+
+            if "MA交叉" in selected_components and "MA_Cross" in signals.columns:
+                if signals["MA_Cross"].iloc[i] == "Buy":
+                    buy_signal = True
+                elif signals["MA_Cross"].iloc[i] == "Sell":
+                    sell_signal = True
+            
+            if "MACD交叉" in selected_components and "MACD_Cross" in signals.columns:
+                if signals["MACD_Cross"].iloc[i] == "Buy":
+                    buy_signal = True
+                elif signals["MACD_Cross"].iloc[i] == "Sell":
+                    sell_signal = True
+            
+            if "RSI超买超卖" in selected_components and "RSI_Overbought" in signals.columns:
+                if signals["RSI_Oversold"].iloc[i] == "Buy":
+                    buy_signal = True
+                elif signals["RSI_Overbought"].iloc[i] == "Sell":
+                    sell_signal = True
+
+            if "KDJ交叉" in selected_components and "KDJ_Cross" in signals.columns:
+                if signals["KDJ_Cross"].iloc[i] == "Buy":
+                    buy_signal = True
+                elif signals["KDJ_Cross"].iloc[i] == "Sell":
+                    sell_signal = True
+            
+            if buy_signal and pos.iloc[i-1] == 0:
+                pos.iloc[i:] = 1.0
+                trades.append({"type": "Buy", "date": dfi.index[i], "price": close_t})
+            elif sell_signal and pos.iloc[i-1] != 0:
+                pos.iloc[i:] = -1.0 if pos.iloc[i-1] == 1.0 else 0.0
+                trades.append({"type": "Sell", "date": dfi.index[i], "price": close_t})
+
             # Simplified equity calculation
             equity.iloc[i] = equity.iloc[i-1] * (1 + pos.iloc[i-1] * (close_t - close_t_1) / close_t_1)
         
@@ -857,11 +1051,12 @@ if page_clean == "策略":
         
         # Simplified Sharpe, assuming 252 trading days per year
         returns = equity.pct_change().dropna()
+        bars_per_year = 252
         if len(returns) > 1 and returns.std() > 0:
-            sharpe = (returns.mean() / returns.std()) * math.sqrt(252)
+            sharpe = (returns.mean() / returns.std()) * math.sqrt(bars_per_year)
         else:
             sharpe = 0.0
-        cagr = (equity.iat[-1] ** (252/max(1, len(equity))) - 1.0) if len(equity)>1 else 0.0
+        cagr = (equity.iat[-1] ** (bars_per_year/max(1, len(equity))) - 1.0) if len(equity)>1 else 0.0
     
         return {
             "equity": equity,
@@ -875,13 +1070,13 @@ if page_clean == "策略":
             "trades_count": int(len(trades))
         }
     
-    res = backtest_combo(dfi)
+    res = backtest_combo(dfi, signals, selected_components)
     if res is None:
         st.warning("所选构件不足以生成信号，请至少选择一个构件，并确保相关指标已在左侧勾选。")
     else:
         c1, c2, c3, c4, c5 = st.columns(5)
         c1.metric("胜率", f"{res['win_rate']*100:.2f}%")
-        c2.metric("累计收益", f"{res['total_return']*100:.2f}%")
+        c2.metric("累计收益", f"{res['total_return']*100:.2f} %")
         c3.metric("最大回撤", f"{res['mdd']*100:.2f}%")
         c4.metric("Sharpe", f"{res['sharpe']:.2f}")
         c5.metric("交易次数", str(res['trades_count']))
