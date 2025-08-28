@@ -10,11 +10,11 @@ def _append_icon(row):
     neutral_keys = ["震荡", "中性", "中轨", "持平", "带内"]
 
     if any(k in label for k in bull_keys) or any(k in desc for k in bull_keys):
-        return f"{desc} 🟢"
+        return f"{desc} ✅"
     if any(k in label for k in bear_keys) or any(k in desc for k in bear_keys):
-        return f"{desc} 🔴"
+        return f"{desc} ❌"
     if any(k in label for k in neutral_keys) or any(k in desc for k in neutral_keys):
-        return f"{desc} ⚪"
+        return f"{desc} ⭕"
     return desc
 
 
