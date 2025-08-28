@@ -383,68 +383,58 @@ def add_indicators(df):
 dfi = add_indicators(df).dropna(how="all")
 
 # ========================= 信号检测函数 =========================
-
 def detect_signals(df):
     """检测各种交易信号"""
     signals = pd.DataFrame(index=df.index)
-
     # MA交叉信号
     if "MA20" in df.columns and "MA50" in df.columns:
         signals["MA_Cross"] = np.where(
-            (df["MA20"] > df["MA50"]) & (df["MA20"].shift(1) <= df["MA50"].shift(1)),
-            "Buy（利多）",
+            (df["MA20"] > df["MA50"]) & (df["MA20"].shift(1) <= df["MA50"].shift(1)), 
+            "Buy", 
             np.where(
-                (df["MA20"] < df["MA50"]) & (df["MA20"].shift(1) >= df["MA50"].shift(1)),
-                "Sell（利空）",
+                (df["MA20"] < df["MA50"]) & (df["MA20"].shift(1) >= df["MA50"].shift(1)), 
+                "Sell", 
                 None
             )
         )
-
+    
     # MACD信号
-    if all(c in df.columns for c in ["MACD", "MACD_signal"]):
+    if all(c in df.columns for c in ["MACD","MACD_signal"]):
         signals["MACD_Cross"] = np.where(
-            (df["MACD"] > df["MACD_signal"]) & (df["MACD"].shift(1) <= df["MACD_signal"].shift(1)),
-            "Buy（利多）",
+            (df["MACD"] > df["MACD_signal"]) & (df["MACD"].shift(1) <= df["MACD_signal"].shift(1)), 
+            "Buy", 
             np.where(
-                (df["MACD"] < df["MACD_signal"]) & (df["MACD"].shift(1) >= df["MACD_signal"].shift(1)),
-                "Sell（利空）",
+                (df["MACD"] < df["MACD_signal"]) & (df["MACD"].shift(1) >= df["MACD_signal"].shift(1)), 
+                "Sell", 
                 None
             )
         )
-
+    
     # RSI超买超卖信号
     if "RSI" in df.columns:
-        signals["RSI_Overbought"] = np.where(df["RSI"] > 70, "Sell（利空）：RSI超买", None)
-        signals["RSI_Oversold"] = np.where(df["RSI"] < 30, "Buy（利多）：RSI超卖", None)
-
+        signals["RSI_Overbought"] = np.where(df["RSI"] > 70, "Sell", None)
+        signals["RSI_Oversold"] = np.where(df["RSI"] < 30, "Buy", None)
+    
     # KDJ信号
-    if all(c in df.columns for c in ["KDJ_K", "KDJ_D"]):
+    if all(c in df.columns for c in ["KDJ_K","KDJ_D"]):
         signals["KDJ_Cross"] = np.where(
-            (df["KDJ_K"] > df["KDJ_D"]) & (df["KDJ_K"].shift(1) <= df["KDJ_D"].shift(1)),
-            "Buy（利多）",
+            (df["KDJ_K"] > df["KDJ_D"]) & (df["KDJ_K"].shift(1) <= df["KDJ_D"].shift(1)), 
+            "Buy", 
             np.where(
-                (df["KDJ_K"] < df["KDJ_D"]) & (df["KDJ_K"].shift(1) >= df["KDJ_D"].shift(1)),
-                "Sell（利空）",
+                (df["KDJ_K"] < df["KDJ_D"]) & (df["KDJ_K"].shift(1) >= df["KDJ_D"].shift(1)), 
+                "Sell", 
                 None
             )
         )
-        signals["KDJ_Overbought"] = np.where(df["KDJ_K"] > 80, "Sell（利空）：KDJ超买", None)
-        signals["KDJ_Oversold"] = np.where(df["KDJ_K"] < 20, "Buy（利多）：KDJ超卖", None)
-
-    # 布林带信号
-    if all(c in df.columns for c in ["Close", "Boll_Upper", "Boll_Lower"]):
-        signals["Bollinger_Bands"] = np.where(
-            df["Close"] > df["Boll_Upper"],
-            "Sell（利空）：突破布林带上轨，可能超买",
-            np.where(
-                df["Close"] < df["Boll_Lower"],
-                "Buy（利多）：跌破布林带下轨，可能超卖",
-                None
-            )
-        )
-
+        signals["KDJ_Overbought"] = np.where(df["KDJ_K"] > 80, "Sell", None)
+        signals["KDJ_Oversold"] = np.where(df["KDJ_K"] < 20, "Buy", None)
+    
     return signals
 
+# 检测信号
+signals = detect_signals(dfi)
+
+# ========================= 支撑阻力计算 =========================
 def calculate_support_resistance(df, window=20):
     """计算支撑和阻力位"""
     # 近期高点和低点
@@ -971,43 +961,31 @@ if page_clean == "策略":
     
     
     # ---------- 指标清单（到达信号打勾） ----------
-    checklist = []
-    def mark(flag): return "✅" if flag else "—"
-
-    # 预计算用于说明的均值/阈值
-    atr_mean = (dfi["ATR"].rolling(14).mean().iloc[-1] if "ATR" in dfi.columns and len(dfi["ATR"].dropna())>=14 else np.nan)
-    checklist.append(("ADX趋势（>=20）", mark(not np.isnan(snap["ADX"]) and snap["ADX"]>=20),
-                      f"ADX={snap['ADX']:.1f}，{('多头' if snap['DIP']>snap['DIN'] else '空头') if (not np.isnan(snap['DIP']) and not np.isnan(snap['DIN'])) else '方向未知'}"))
-    checklist.append(("MACD金叉", mark(not np.isnan(snap["MACD"]) and not np.isnan(snap["MACD_signal"]) and snap["MACD"]>snap["MACD_signal"]),
-                      f"MACD={snap['MACD']:.3f} / Signal={snap['MACD_signal']:.3f}"))
-    checklist.append(("RSI超卖(<30)", mark(not np.isnan(snap["RSI"]) and snap["RSI"]<30), f"RSI={snap['RSI']:.1f}"))
-    checklist.append(("RSI超买(>70)", mark(not np.isnan(snap["RSI"]) and snap["RSI"]>70), f"RSI={snap['RSI']:.1f}"))
-    checklist.append(("KDJ金叉", mark(not np.isnan(snap["KDJ_K"]) and not np.isnan(snap["KDJ_D"]) and snap["KDJ_K"]>snap["KDJ_D"]), f"K={snap['KDJ_K']:.1f}/D={snap['KDJ_D']:.1f}"))
-    checklist.append(("价格在EMA200之上", mark(not np.isnan(snap["EMA200"]) and price>snap["EMA200"]), f"EMA200={snap['EMA200']:.2f}"))
-    checklist.append(("布林上轨突破", mark(not np.isnan(snap['BOLL_U']) and price>snap['BOLL_U']), f"U={snap['BOLL_U']:.2f}"))
-    checklist.append(("布林下轨跌破", mark(not np.isnan(snap['BOLL_L']) and price<snap['BOLL_L']), f"L={snap['BOLL_L']:.2f}"))
     
-    # 新增：CCI 做多/做空
-    if "CCI" in dfi.columns:
-        checklist.append(("CCI>100（做多）", mark(not np.isnan(snap["CCI"]) and snap["CCI"] > 100),
-                          f"CCI={snap['CCI']:.1f}"))
-        checklist.append(("CCI<-100（做空）", mark(not np.isnan(snap["CCI"]) and snap["CCI"] < -100),
-                          f"CCI={snap['CCI']:.1f}"))
-    # 新增：ATR 相对均值
-    if "ATR" in dfi.columns and not np.isnan(atr_mean):
-        checklist.append(("ATR低于均值（趋势稳定/利多）", mark(not np.isnan(snap["ATR"]) and snap["ATR"] < atr_mean),
-                          f"ATR={snap['ATR']:.3f} / 均值≈{atr_mean:.3f}"))
-        checklist.append(("ATR高于均值（波动放大/利空）", mark(not np.isnan(snap["ATR"]) and snap["ATR"] > atr_mean),
-                          f"ATR={snap['ATR']:.3f} / 均值≈{atr_mean:.3f}"))
-    # 新增：VWAP（成交量加权均价）
-    if "VWAP" in dfi.columns:
-        checklist.append(("价格>VWAP（做多）", mark(not np.isnan(snap.get("VWAP", np.nan)) and price > snap["VWAP"]),
-                          f"VWAP={snap['VWAP']:.2f}"))
-        checklist.append(("价格<VWAP（做空）", mark(not np.isnan(snap.get("VWAP", np.nan)) and price < snap["VWAP"]),
-                          f"VWAP={snap['VWAP']:.2f}"))
+# 构建固定指标表格，不受侧边栏勾选影响
+import pandas as pd
+indicators_list = [
+    ("ADX/DMI", "adx_signal", "趋势强度判断，ADX上升视为趋势增强（利多/利空取决于方向）"),
+    ("MACD", "macd_signal", "MACD金叉利多，死叉利空"),
+    ("RSI", "rsi_signal", "RSI高于70超买利空，低于30超卖利多"),
+    ("KDJ", "kdj_signal", "KDJ金叉利多，死叉利空"),
+    ("EMA200", "ema200_signal", "价格在EMA200上方为利多，下方为利空"),
+    ("布林带", "boll_signal", "价格突破上轨利空，跌破下轨利多"),
+    ("CCI", "cci_signal", "CCI高于100利多，低于-100利空"),
+    ("ATR", "atr_signal", "ATR放大提示波动率增加，方向取决于价格趋势"),
+    ("MFI", "mfi_signal", "MFI高于80利空，低于20利多"),
+    ("OBV", "obv_signal", "OBV上升配合价格上行利多，下降配合价格下行利空"),
+    ("VWAP", "vwap_signal", "价格高于VWAP利多，低于VWAP利空")
+]
 
-    # 显示为表格
-    import pandas as pd
+table_data = []
+for name, key, desc in indicators_list:
+    sig = cl_df.get(key, ["—"])[-1] if key in cl_df.columns else "—"
+    table_data.append([name, sig, desc])
+
+cl_df_display = pd.DataFrame(table_data, columns=["指标","信号","说明"])
+st.dataframe(cl_df_display, use_container_width=True)
+import pandas as pd
     cl_df = pd.DataFrame(checklist, columns=["指标/条件","信号","说明"])
     st.dataframe(cl_df, use_container_width=True)
     
