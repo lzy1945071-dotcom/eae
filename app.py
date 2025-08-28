@@ -1010,11 +1010,10 @@ if page_clean == "策略":
         if any(k in label for k in bear_keys):
             return f"{desc} <span style='color:red;font-weight:bold'>&#9660;</span>"
         return desc
-
+    
     if "说明" in cl_df.columns:
         cl_df["说明"] = cl_df.apply(_append_icon, axis=1)
-
-    st.markdown(cl_df.to_html(escape=False, index=False, justify='center'), unsafe_allow_html=True)
+    st.markdown(cl_df.to_html(escape=False, index=False), unsafe_allow_html=True)
     
     st.caption("评分系统基于当前价相对多项指标的位置与信号，仅供参考，非投资建议。")
 
