@@ -831,16 +831,15 @@ if page_clean == "K线图":
             visible="legendonly"  # 默认隐藏
         ))
     
-    # 添加成交量 - 默认显示
-    vol_colors = np.where(dfi["Close"] >= dfi["Open"], "rgba(38,166,91,0.7)", "rgba(239,83,80,0.7)")
+    # 添加成交量 - 默认显示 (修改颜色为更深的实体)
+    vol_colors = np.where(dfi["Close"] >= dfi["Open"], "#26A69A", "#EF5350")
     if "Volume" in dfi.columns and not dfi["Volume"].isna().all():
         fig.add_trace(go.Bar(
             x=dfi.index, 
             y=dfi["Volume"], 
             name="成交量", 
             yaxis="y2", 
-            marker_color=vol_colors,
-            opacity=0.7
+            marker_color=vol_colors
         ))
     
     # 添加MACD副图 - 默认显示
@@ -1115,12 +1114,6 @@ if page_clean == "策略":
     c2.metric("做空评分", f"{short_score:.0f}/100")
     c3.metric("诱多概率", f"{bull_trap_prob:.1f}%")
     c4.metric("诱空概率", f"{bear_trap_prob:.1f}%")
-    
-    # # [已删除] 斐波那契盈亏比
-    # c5, c6 = st.columns(2)
-    # c5.metric("Fibo 盈亏比（多）", "-" if np.isnan(long_rr) else f"{long_rr:.2f}")
-    # c6.metric("Fibo 盈亏比（空）", "-" if np.isnan(short_rr) else f"{short_rr:.2f}")
-
     
     # ================= 评分数值文字显示 =================
     colg1, colg2 = st.columns(2)
