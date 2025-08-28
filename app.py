@@ -998,7 +998,7 @@ if page_clean == "策略":
     snap = {
         "MA20": g("MA20"), "MA50": g("MA50"), "EMA200": g("EMA200"),
         "MACD": g("MACD"), "MACD_signal": g("MACD_signal"), "MACD_hist": g("MACD_hist"),
-        "RSI": g("RSI"), "ATR": g("ATR"), "VWAP": g("VWAP"),
+#        "RSI": g("RSI"), "ATR": g("ATR"), "VWAP": g("VWAP"),
         "ADX": g("ADX"), "DIP": g("DIP"), "DIN": g("DIN"),
         "BOLL_U": g("BOLL_U"), "BOLL_L": g("BOLL_L"),
         "KDJ_K": g("KDJ_K"), "KDJ_D": g("KDJ_D"), "KDJ_J": g("KDJ_J"),
@@ -1044,9 +1044,9 @@ if page_clean == "策略":
     obos_up_score = (obos_up + 2) / 4.0  # 0~1，中性=0.5
     obos_dn_score = 1 - obos_up_score
     
-    # 波动（ATR占价比例，越高越不利开仓）
-    atrp = snap["ATR"]/price if not np.isnan(snap["ATR"]) and price>0 else 0.01
-    vol_score = max(0.0, 1.0 - min(1.0, atrp*10))  # ATR占比>10% 则接近0分
+#    # 波动（ATR占价比例，越高越不利开仓）
+#    atrp = snap["ATR"]/price if not np.isnan(snap["ATR"]) and price>0 else 0.01
+#    vol_score = max(0.0, 1.0 - min(1.0, atrp*10))  # ATR占比>10% 则接近0分
     
     # 量能（MFI/OBV不可用则忽略，这里仅用MFI中性55以下偏多，55以上偏空）
     volu_up_score = 0.5
@@ -1127,6 +1127,10 @@ if page_clean == "策略":
         ind_table = build_indicator_signal_table(dfi)
         st.subheader("实时策略指标表格（全指标）")
         st.dataframe(ind_table, use_container_width=True)
+
+# === 提取利多/利空指标数量 ===
+bull_count = (signal_df['信号'] == '利多').sum() if '信号' in signal_df.columns else 0
+bear_count = (signal_df['信号'] == '利空').sum() if '信号' in signal_df.columns else 0
     except Exception as e:
         st.info(f"指标表格生成遇到问题：{e}")
 
@@ -1180,7 +1184,7 @@ if page_clean == "策略":
     support_zone = (recent_low.min(), dfi["Close"].iloc[-N:].min())
     resist_zone = (dfi["Close"].iloc[-N:].max(), recent_high.max())
     
-    # 4) ATR 止盈止损
+#    # 4) ATR 止盈止损
     if use_atr and "ATR" in dfi.columns and not np.isnan(last["ATR"]):
         atr_val = float(last["ATR"])
     else:
