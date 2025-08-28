@@ -997,9 +997,25 @@ if page_clean == "策略":
         checklist.append(("价格<VWAP（做空）", mark(not np.isnan(snap.get("VWAP", np.nan)) and price < snap["VWAP"]),
                           f"VWAP={snap['VWAP']:.2f}"))
 
-    # 显示为表格
+    # 显示为表格（HTML渲染 + 说明列图标）
     import pandas as pd
-import html
+    import html
+
+    # 为“说明”列追加红/绿三角图标
+    def _append_icon(row):
+        label = str(row["指标/条件"])
+        desc = str(row["说明"])
+        desc = html.escape(desc)  # 转义非法字符，避免前端报错
+
+        bull_keys = ["做多","利多","金叉","上穿","上破","突破","之上","在上方"]
+        bear_keys = ["做空","利空","死叉","下穿","下破","跌破","之下","在下方","超买"]
+
+        if any(k in label for k in bull_keys):
+            return f"{desc} <span style='color:green;font-weight:bold'>&#9650;</span>"
+        if any(k in label for k in bear_keys):
+            return f"{desc} <span style='color:red;font-weight:bold'>&#9660;</span>"
+        return desc
+
     cl_df = pd.DataFrame(checklist, columns=["指标/条件","信号","说明"])
     cl_df["说明"] = cl_df.apply(_append_icon, axis=1)
 
@@ -1007,28 +1023,7 @@ import html
         cl_df.to_html(escape=False, index=False),
         unsafe_allow_html=True
     )
-    # 为“说明”列追加红/绿三角图标
-    def _append_icon(row):
-    label = str(row["指标/条件"])
-    desc = str(row["说明"])
-    desc = html.escape(desc)  # 转义非法字符
 
-    bull_keys = ["做多","利多","金叉","上穿","上破","突破","之上","在上方"]
-    bear_keys = ["做空","利空","死叉","下穿","下破","跌破","之下","在下方","超买"]
-
-    if any(k in label for k in bull_keys):
-        return f"{desc} <span style='color:green;font-weight:bold'>&#9650;</span>"
-    if any(k in label for k in bear_keys):
-        return f"{desc} <span style='color:red;font-weight:bold'>&#9660;</span>"
-    return desc
-    
-    if "说明" in cl_df.columns:
-        cl_df["说明"] = cl_df.apply(_append_icon, axis=1)
-    st.markdown(cl_df.to_html(escape=False, index=False), unsafe_allow_html=True)
-    
-    st.caption("评分系统基于当前价相对多项指标的位置与信号，仅供参考，非投资建议。")
-
-    
     last = dfi.dropna().iloc[-1]
     price = float(last["Close"])
     
