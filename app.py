@@ -386,6 +386,9 @@ dfi = add_indicators(df).dropna(how="all")
 def detect_signals(df):
     """检测各种交易信号"""
     signals = pd.DataFrame(index=df.index)
+long_signals = signals  # ✅ 做多信号列表
+short_signals = ["✅" if s=="" else "" for s in signals]  # ✅ 简单示例：做空与做多相反，可根据实际逻辑调整
+    
     # MA交叉信号
     if "MA20" in df.columns and "MA50" in df.columns:
         signals["MA_Cross"] = np.where(
@@ -768,7 +771,7 @@ if page_clean == "策略":
     snap = {
         "MA20": g("MA20"), "MA50": g("MA50"), "EMA200": g("EMA200"),
         "MACD": g("MACD"), "MACD_signal": g("MACD_signal"), "MACD_hist": g("MACD_hist"),
-        "RSI": g("RSI"), "ATR": g("ATR"), "VWAP": g("VWAP"),
+        "RSI": g("RSI"), "ATR": g("ATR"),
         "ADX": g("ADX"), "DIP": g("DIP"), "DIN": g("DIN"),
         "BOLL_U": g("BOLL_U"), "BOLL_L": g("BOLL_L"),
         "KDJ_K": g("KDJ_K"), "KDJ_D": g("KDJ_D"), "KDJ_J": g("KDJ_J"),
@@ -957,15 +960,9 @@ if page_clean == "策略":
         polar=dict(radialaxis=dict(visible=True, range=[0,100])),
         showlegend=False,
         title="评分构成雷达图"
-    )
-    
-    
-    # ---------- 指标清单（到达信号打勾） ----------
+    )# ---------- 指标清单（到达信号打勾） ----------
     checklist = []
     def mark(flag): return "✅" if flag else "—"
-
-    # 预计算用于说明的均值/阈值
-    atr_mean = (dfi["ATR"].rolling(14).mean().iloc[-1] if "ATR" in dfi.columns and len(dfi["ATR"].dropna())>=14 else np.nan)
     checklist.append(("ADX趋势（>=20）", mark(not np.isnan(snap["ADX"]) and snap["ADX"]>=20),
                       f"ADX={snap['ADX']:.1f}，{('多头' if snap['DIP']>snap['DIN'] else '空头') if (not np.isnan(snap['DIP']) and not np.isnan(snap['DIN'])) else '方向未知'}"))
     checklist.append(("MACD金叉", mark(not np.isnan(snap["MACD"]) and not np.isnan(snap["MACD_signal"]) and snap["MACD"]>snap["MACD_signal"]),
@@ -977,25 +974,6 @@ if page_clean == "策略":
     checklist.append(("布林上轨突破", mark(not np.isnan(snap['BOLL_U']) and price>snap['BOLL_U']), f"U={snap['BOLL_U']:.2f}"))
     checklist.append(("布林下轨跌破", mark(not np.isnan(snap['BOLL_L']) and price<snap['BOLL_L']), f"L={snap['BOLL_L']:.2f}"))
     
-    # 新增：CCI 做多/做空
-    if "CCI" in dfi.columns:
-        checklist.append(("CCI>100（做多）", mark(not np.isnan(snap["CCI"]) and snap["CCI"] > 100),
-                          f"CCI={snap['CCI']:.1f}"))
-        checklist.append(("CCI<-100（做空）", mark(not np.isnan(snap["CCI"]) and snap["CCI"] < -100),
-                          f"CCI={snap['CCI']:.1f}"))
-    # 新增：ATR 相对均值
-    if "ATR" in dfi.columns and not np.isnan(atr_mean):
-        checklist.append(("ATR低于均值（趋势稳定/利多）", mark(not np.isnan(snap["ATR"]) and snap["ATR"] < atr_mean),
-                          f"ATR={snap['ATR']:.3f} / 均值≈{atr_mean:.3f}"))
-        checklist.append(("ATR高于均值（波动放大/利空）", mark(not np.isnan(snap["ATR"]) and snap["ATR"] > atr_mean),
-                          f"ATR={snap['ATR']:.3f} / 均值≈{atr_mean:.3f}"))
-    # 新增：VWAP（成交量加权均价）
-    if "VWAP" in dfi.columns:
-        checklist.append(("价格>VWAP（做多）", mark(not np.isnan(snap.get("VWAP", np.nan)) and price > snap["VWAP"]),
-                          f"VWAP={snap['VWAP']:.2f}"))
-        checklist.append(("价格<VWAP（做空）", mark(not np.isnan(snap.get("VWAP", np.nan)) and price < snap["VWAP"]),
-                          f"VWAP={snap['VWAP']:.2f}"))
-
     # 显示为表格
     import pandas as pd
     cl_df = pd.DataFrame(checklist, columns=["指标/条件","信号","说明"])
@@ -1396,3 +1374,5 @@ if page_clean == "策略":
             st.plotly_chart(px.histogram(res["trades"], nbins=20, title="单笔收益分布（组合策略）", config={'scrollZoom': True, 'responsive': True, 'displaylogo': False}), use_container_width=True)
         else:
             st.info("组合策略暂无闭合交易样本。")
+
+st.plotly_chart(fig_radar, use_container_width=True)
