@@ -1,6 +1,23 @@
 # app.py — Legend Quant Terminal Elite v3 FIX10 (TV风格 + 多指标 + 实时策略增强)
 import streamlit as st
 
+def _append_icon(row):
+    label = str(row["指标/条件"])
+    desc = str(row["说明"])
+
+    bull_keys = ["做多", "利多", "金叉", "上穿", "上破", "突破", "之上", "在上方"]
+    bear_keys = ["做空", "利空", "死叉", "下穿", "下破", "跌破", "之下", "在下方", "超买"]
+    neutral_keys = ["震荡", "中性", "中轨", "持平", "带内"]
+
+    if any(k in label for k in bull_keys) or any(k in desc for k in bull_keys):
+        return f"{desc} 🟢"
+    if any(k in label for k in bear_keys) or any(k in desc for k in bear_keys):
+        return f"{desc} 🔴"
+    if any(k in label for k in neutral_keys) or any(k in desc for k in neutral_keys):
+        return f"{desc} ⚪"
+    return desc
+
+
 # ====================== 新增：实时策略指标信息表格（始终包含所有指标） ======================
 def build_indicator_signal_table(dfi):
     """
@@ -1216,24 +1233,6 @@ if page_clean == "策略":
 
     # 显示为表格
     import pandas as pd
-def _append_icon(row):
-    import html
-    label = str(row["指标/条件"])
-    desc = str(row["说明"])
-    desc = html.escape(desc)
-
-    bull_keys = ["做多", "利多", "金叉", "上穿", "上破", "突破", "之上", "在上方"]
-    bear_keys = ["做空", "利空", "死叉", "下穿", "下破", "跌破", "之下", "在下方", "超买"]
-    neutral_keys = ["震荡", "中性", "中轨", "持平", "带内"]
-
-    if any(k in label for k in bull_keys) or any(k in desc for k in bull_keys):
-        return f"{desc} 🟢"
-    if any(k in label for k in bear_keys) or any(k in desc for k in bear_keys):
-        return f"{desc} 🔴"
-    if any(k in label for k in neutral_keys) or any(k in desc for k in neutral_keys):
-        return f"{desc} ⚪"
-    return desc
-
     cl_df = pd.DataFrame(checklist, columns=["指标/条件","信号","说明"])
     st.dataframe(cl_df, use_container_width=True)
     
