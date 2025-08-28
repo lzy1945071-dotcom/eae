@@ -984,9 +984,7 @@ for name, key, desc in indicators_list:
     table_data.append([name, sig, desc])
 
 cl_df_display = pd.DataFrame(table_data, columns=["指标","信号","说明"])
-st.dataframe(cl_df_display, use_container_width=True)
 import pandas as pd
-        st.dataframe(cl_df, use_container_width=True)
     
     st.caption("评分系统基于当前价相对多项指标的位置与信号，仅供参考，非投资建议。")
 
