@@ -743,7 +743,210 @@ if page_clean == "K线图":
     ,
         uirevision='constant'
     )
+    st.plotly_chart(fig, use_container_width=True, config={
+        "scrollZoom": True,
+        "displayModeBar": True,
+        "displaylogo": False
+    })
     
+if page_clean == "策略":
+    # ========================= 实时策略建议（增强版） =========================
+    st.markdown("---")
+    st.subheader("🧭 实时策略建议（非投资建议）")
+
+    # === 新增：做多/做空评分 + ADX趋势强度 + 斐波那契盈亏比 + 诱多/诱空概率 + 指标打勾清单 ===
+    # 取最新一根K线数据
+    last = dfi.dropna().iloc[-1]
+    price = float(last["Close"])
+    high = float(last["High"])
+    low = float(last["Low"])
+    
+    # ---------- 指标快照（安全获取） ----------
+    def g(col, default=np.nan):
+        return float(last[col]) if col in dfi.columns and not np.isnan(last[col]) else default
+    
+    snap = {
+        "MA20": g("MA20"), "MA50": g("MA50"), "EMA200": g("EMA200"),
+        "MACD": g("MACD"), "MACD_signal": g("MACD_signal"), "MACD_hist": g("MACD_hist"),
+        "RSI": g("RSI"), "ATR": g("ATR"), "VWAP": g("VWAP"),
+        "ADX": g("ADX"), "DIP": g("DIP"), "DIN": g("DIN"),
+        "BOLL_U": g("BOLL_U"), "BOLL_L": g("BOLL_L"),
+        "KDJ_K": g("KDJ_K"), "KDJ_D": g("KDJ_D"), "KDJ_J": g("KDJ_J"),
+        "MFI": g("MFI") if "MFI" in dfi.columns else np.nan,
+        "CCI": g("CCI") if "CCI" in dfi.columns else np.nan,
+        "PSAR": g("PSAR") if "PSAR" in dfi.columns else np.nan,
+    }
+    
+    # ---------- 做多/做空评分（0-100） ----------
+    long_score = 0.0
+    short_score = 0.0
+    weights = {
+        "trend": 30, "momentum": 30, "overbought_oversold": 15, "volatility": 10, "volume": 10, "extras": 5
+    }
+    # 趋势（MA/EMA + DI方向）
+    trend_up = 0
+    if not np.isnan(snap["MA20"]) and not np.isnan(snap["MA50"]) and snap["MA20"] > snap["MA50"]:
+        trend_up += 1
+    if not np.isnan(snap["EMA200"]) and price > snap["EMA200"]:
+        trend_up += 1
+    di_up = 1 if (not np.isnan(snap["DIP"]) and not np.isnan(snap["DIN"]) and snap["DIP"] > snap["DIN"]) else 0
+    adx_str = 1 if (not np.isnan(snap["ADX"]) and snap["ADX"] >= 20) else 0  # ADX阈值：20认为有趋势
+    trend_up_score = (trend_up + di_up + adx_str) / 4.0  # 0~1
+    trend_dn_score = (1 - (trend_up)) / 2.0 + (1 if di_up==0 else 0)/2.0  # 粗略反向
+    
+    # 动能（MACD、KDJ交叉）
+    mom_up = 0
+    if not np.isnan(snap["MACD"]) and not np.isnan(snap["MACD_signal"]) and snap["MACD"] > snap["MACD_signal"]:
+        mom_up += 1
+    if not np.isnan(snap["KDJ_K"]) and not np.isnan(snap["KDJ_D"]) and snap["KDJ_K"] > snap["KDJ_D"]:
+        mom_up += 1
+    mom_up_score = mom_up / 2.0
+    mom_dn_score = 1 - mom_up_score
+    
+    # 超买超卖（RSI/KDJ）
+    obos_up = 0
+    if not np.isnan(snap["RSI"]):
+        if snap["RSI"] < 30: obos_up += 1
+        if snap["RSI"] > 70: obos_up -= 1
+    if not np.isnan(snap["KDJ_K"]):
+        if snap["KDJ_K"] < 20: obos_up += 1
+        if snap["KDJ_K"] > 80: obos_up -= 1
+    obos_up_score = (obos_up + 2) / 4.0  # 0~1，中性=0.5
+    obos_dn_score = 1 - obos_up_score
+    
+    # 波动（ATR占价比例，越高越不利开仓）
+    atrp = snap["ATR"]/price if not np.isnan(snap["ATR"]) and price>0 else 0.01
+    vol_score = max(0.0, 1.0 - min(1.0, atrp*10))  # ATR占比>10% 则接近0分
+    
+    # 量能（MFI/OBV不可用则忽略，这里仅用MFI中性55以下偏多，55以上偏空）
+    volu_up_score = 0.5
+    if not np.isnan(snap["MFI"]):
+        if snap["MFI"] < 45: volu_up_score = 0.7
+        elif snap["MFI"] > 55: volu_up_score = 0.3
+    
+    # 其它（CCI偏离、价格位于布林）
+    extras_up = 0.5
+    if not np.isnan(snap["BOLL_U"]) and price < snap["BOLL_U"]: extras_up += 0.1
+    if not np.isnan(snap["BOLL_L"]) and price < snap["BOLL_L"]: extras_up += 0.1  # 下轨外偏反转
+    extras_up = min(1.0, max(0.0, extras_up))
+    extras_dn = 1 - extras_up
+    
+    long_score = (
+        weights["trend"]*trend_up_score +
+        weights["momentum"]*mom_up_score +
+        weights["overbought_oversold"]*obos_up_score +
+        weights["volatility"]*vol_score +
+        weights["volume"]*volu_up_score +
+        weights["extras"]*extras_up
+    ) / sum(weights.values()) * 100.0
+    
+    short_score = (
+        weights["trend"]*trend_dn_score +
+        weights["momentum"]*mom_dn_score +
+        weights["overbought_oversold"]*obos_dn_score +
+        weights["volatility"]*vol_score +
+        weights["volume"]*(1-volu_up_score) +
+        weights["extras"]*extras_dn
+    ) / sum(weights.values()) * 100.0
+    
+    # ---------- 斐波那契盈亏比（基于最近N根K线高低点） ----------
+    # 复用上文斐波那契设置，如果变量不存在则临时计算
+    try:
+        fib_high, fib_low, levels
+    except NameError:
+        sub_df = dfi.tail(100)
+        fib_high = float(sub_df["High"].max())
+        fib_low = float(sub_df["Low"].min())
+        levels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1]
+    fib_prices = [fib_high - (fib_high - fib_low) * l for l in levels]
+    fib_prices = sorted(fib_prices)  # 从低到高
+    
+    # 找到离当前价最近的上下两个Fib价位
+    below = max([p for p in fib_prices if p <= price], default=fib_prices[0])
+    above = min([p for p in fib_prices if p >= price], default=fib_prices[-1])
+    
+    # 趋势方向参考：DIP vs DIN（若无趋势则RR偏保守）
+    trend_dir = 1 if (not np.isnan(snap["DIP"]) and not np.isnan(snap["DIN"]) and snap["DIP"] >= snap["DIN"]) else -1
+    # 做多：目标=上一个更高的Fib，止损=下一个更低的Fib
+    # 做空：目标=下一个更低的Fib，止损=上一个更高的Fib
+    def next_upper(p):
+        ups = [x for x in fib_prices if x > p]
+        return ups[0] if ups else fib_prices[-1]
+    def next_lower(p):
+        downs = [x for x in fib_prices if x < p]
+        return downs[-1] if downs else fib_prices[0]
+    long_tp = next_upper(price)
+    long_sl = next_lower(price)
+    short_tp = next_lower(price)
+    short_sl = next_upper(price)
+    long_rr = (long_tp - price) / max(1e-9, price - long_sl) if long_tp>price and long_sl<price else np.nan
+    short_rr = (price - short_tp) / max(1e-9, short_sl - price) if short_tp<price and short_sl>price else np.nan
+    
+    # ---------- 诱多/诱空概率（启发式） ----------
+    # 条件示例：
+    # 诱多（Bull Trap）：价格突破上轨或前高但ADX<18 & MACD背离（hist走弱）；
+    # 诱空（Bear Trap）：价格跌破下轨或前低但ADX<18 & 动能反弹。
+    def sigmoid(x): 
+        return 1/(1+np.exp(-x))
+    adx_weak = (not np.isnan(snap["ADX"]) and snap["ADX"] < 18)
+    upper_break = (not np.isnan(snap["BOLL_U"]) and price > snap["BOLL_U"])
+    lower_break = (not np.isnan(snap["BOLL_L"]) and price < snap["BOLL_L"])
+    macd_weak = (not np.isnan(snap["MACD_hist"]) and len(dfi)>3 and
+                 (dfi["MACD_hist"].iloc[-1] < dfi["MACD_hist"].iloc[-2]) )
+    kdj_overbought = (not np.isnan(snap["KDJ_K"]) and snap["KDJ_K"]>80)
+    kdj_oversold = (not np.isnan(snap["KDJ_K"]) and snap["KDJ_K"]<20)
+    
+    bull_trap_score = 0
+    if upper_break: bull_trap_score += 1
+    if adx_weak: bull_trap_score += 1
+    if macd_weak: bull_trap_score += 1
+    if kdj_overbought: bull_trap_score += 0.5
+    bull_trap_prob = min(0.98, sigmoid(bull_trap_score - 1.5)) * 100
+    
+    bear_trap_score = 0
+    if lower_break: bear_trap_score += 1
+    if adx_weak: bear_trap_score += 1
+    if not np.isnan(snap["MACD_hist"]) and dfi["MACD_hist"].iloc[-1] > dfi["MACD_hist"].iloc[-2]: 
+        bear_trap_score += 1
+    if kdj_oversold: bear_trap_score += 0.5
+    bear_trap_prob = min(0.98, sigmoid(bear_trap_score - 1.5)) * 100
+    
+    # ---------- UI：四宫格指标 ----------
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("做多评分", f"{long_score:.0f}/100")
+    c2.metric("做空评分", f"{short_score:.0f}/100")
+    c3.metric("诱多概率", f"{bull_trap_prob:.1f}%")
+    c4.metric("诱空概率", f"{bear_trap_prob:.1f}%")
+    
+    # 斐波那契盈亏比
+    c5, c6 = st.columns(2)
+    c5.metric("Fibo 盈亏比（多）", "-" if np.isnan(long_rr) else f"{long_rr:.2f}")
+    c6.metric("Fibo 盈亏比（空）", "-" if np.isnan(short_rr) else f"{short_rr:.2f}")
+
+    
+    # ================= 评分数值文字显示 =================
+    colg1, colg2 = st.columns(2)
+    with colg1:
+        st.markdown(f"<h2 style='color:green; text-align:center;'>做多评分: <b>{float(long_score):.1f}</b></h2>", unsafe_allow_html=True)
+    with colg2:
+        st.markdown(f"<h2 style='color:red; text-align:center;'>做空评分: <b>{float(short_score):.1f}</b></h2>", unsafe_allow_html=True)
+
+    
+
+# ================= 雷达图显示（评分构成） =================
+    # 使用已计算的子评分（0~1）并映射到0~100
+    def _nz(x, default=0.5):
+        try:
+            import numpy as _np
+            return float(x) if (x is not None and not _np.isnan(x)) else float(default)
+        except Exception:
+            return float(default)
+    radar_factors = ["趋势","动能","超买超卖","波动","量能","其它"]
+    radar_values01 = [
+        _nz(trend_up_score), _nz(mom_up_score), _nz(obos_up_score), _nz(vol_score), _nz(volu_up_score), _nz(extras_up)
+    ]
+    radar_values = [v*100 for v in radar_values01]
+    fig_radar = go.Figure()
     fig_radar.add_trace(go.Scatterpolar(
         r=radar_values + [radar_values[0]],
         theta=radar_factors + [radar_factors[0]],
@@ -756,6 +959,50 @@ if page_clean == "K线图":
         title="评分构成雷达图"
     )
     
+    
+    # ---------- 指标清单（到达信号打勾） ----------
+    checklist = []
+    def mark(flag): return "✅" if flag else "—"
+
+    # 预计算用于说明的均值/阈值
+    atr_mean = (dfi["ATR"].rolling(14).mean().iloc[-1] if "ATR" in dfi.columns and len(dfi["ATR"].dropna())>=14 else np.nan)
+    checklist.append(("ADX趋势（>=20）", mark(not np.isnan(snap["ADX"]) and snap["ADX"]>=20),
+                      f"ADX={snap['ADX']:.1f}，{('多头' if snap['DIP']>snap['DIN'] else '空头') if (not np.isnan(snap['DIP']) and not np.isnan(snap['DIN'])) else '方向未知'}"))
+    checklist.append(("MACD金叉", mark(not np.isnan(snap["MACD"]) and not np.isnan(snap["MACD_signal"]) and snap["MACD"]>snap["MACD_signal"]),
+                      f"MACD={snap['MACD']:.3f} / Signal={snap['MACD_signal']:.3f}"))
+    checklist.append(("RSI超卖(<30)", mark(not np.isnan(snap["RSI"]) and snap["RSI"]<30), f"RSI={snap['RSI']:.1f}"))
+    checklist.append(("RSI超买(>70)", mark(not np.isnan(snap["RSI"]) and snap["RSI"]>70), f"RSI={snap['RSI']:.1f}"))
+    checklist.append(("KDJ金叉", mark(not np.isnan(snap["KDJ_K"]) and not np.isnan(snap["KDJ_D"]) and snap["KDJ_K"]>snap["KDJ_D"]), f"K={snap['KDJ_K']:.1f}/D={snap['KDJ_D']:.1f}"))
+    checklist.append(("价格在EMA200之上", mark(not np.isnan(snap["EMA200"]) and price>snap["EMA200"]), f"EMA200={snap['EMA200']:.2f}"))
+    checklist.append(("布林上轨突破", mark(not np.isnan(snap['BOLL_U']) and price>snap['BOLL_U']), f"U={snap['BOLL_U']:.2f}"))
+    checklist.append(("布林下轨跌破", mark(not np.isnan(snap['BOLL_L']) and price<snap['BOLL_L']), f"L={snap['BOLL_L']:.2f}"))
+    
+    # 新增：CCI 做多/做空
+    if "CCI" in dfi.columns:
+        checklist.append(("CCI>100（做多）", mark(not np.isnan(snap["CCI"]) and snap["CCI"] > 100),
+                          f"CCI={snap['CCI']:.1f}"))
+        checklist.append(("CCI<-100（做空）", mark(not np.isnan(snap["CCI"]) and snap["CCI"] < -100),
+                          f"CCI={snap['CCI']:.1f}"))
+    # 新增：ATR 相对均值
+    if "ATR" in dfi.columns and not np.isnan(atr_mean):
+        checklist.append(("ATR低于均值（趋势稳定/利多）", mark(not np.isnan(snap["ATR"]) and snap["ATR"] < atr_mean),
+                          f"ATR={snap['ATR']:.3f} / 均值≈{atr_mean:.3f}"))
+        checklist.append(("ATR高于均值（波动放大/利空）", mark(not np.isnan(snap["ATR"]) and snap["ATR"] > atr_mean),
+                          f"ATR={snap['ATR']:.3f} / 均值≈{atr_mean:.3f}"))
+    # 新增：VWAP（成交量加权均价）
+    if "VWAP" in dfi.columns:
+        checklist.append(("价格>VWAP（做多）", mark(not np.isnan(snap.get("VWAP", np.nan)) and price > snap["VWAP"]),
+                          f"VWAP={snap['VWAP']:.2f}"))
+        checklist.append(("价格<VWAP（做空）", mark(not np.isnan(snap.get("VWAP", np.nan)) and price < snap["VWAP"]),
+                          f"VWAP={snap['VWAP']:.2f}"))
+
+    # 显示为表格
+    import pandas as pd
+    cl_df = pd.DataFrame(checklist, columns=["指标/条件","信号","说明"])
+    st.dataframe(cl_df, use_container_width=True)
+    
+    st.caption("评分系统基于当前价相对多项指标的位置与信号，仅供参考，非投资建议。")
+
     
     last = dfi.dropna().iloc[-1]
     price = float(last["Close"])
@@ -825,58 +1072,7 @@ if page_clean == "K线图":
     c3.metric("评分", str(score))
     c4.metric("ATR", f"{atr_val:,.4f}")
     
-    st.write("**依据**：", "；".join(reasons) 
-
-# ---------- 指标清单（到达信号打勾） ----------
-    checklist = []
-    def mark(flag): return "✅" if flag else "—"
-
-    # 预计算用于说明的均值/阈值
-    atr_mean = (dfi["ATR"].rolling(14).mean().iloc[-1] if "ATR" in dfi.columns and len(dfi["ATR"].dropna())>=14 else np.nan)
-    checklist.append(("ADX趋势（>=20）", mark(not np.isnan(snap["ADX"]) and snap["ADX"]>=20),
-                      f"ADX={snap['ADX']:.1f}，{('多头' if snap['DIP']>snap['DIN'] else '空头') if (not np.isnan(snap['DIP']) and not np.isnan(snap['DIN'])) else '方向未知'}"))
-    checklist.append(("MACD金叉", mark(not np.isnan(snap["MACD"]) and not np.isnan(snap["MACD_signal"]) and snap["MACD"]>snap["MACD_signal"]),
-                      f"MACD={snap['MACD']:.3f} / Signal={snap['MACD_signal']:.3f}"))
-    checklist.append(("RSI超卖(<30)", mark(not np.isnan(snap["RSI"]) and snap["RSI"]<30), f"RSI={snap['RSI']:.1f}"))
-    checklist.append(("RSI超买(>70)", mark(not np.isnan(snap["RSI"]) and snap["RSI"]>70), f"RSI={snap['RSI']:.1f}"))
-    checklist.append(("KDJ金叉", mark(not np.isnan(snap["KDJ_K"]) and not np.isnan(snap["KDJ_D"]) and snap["KDJ_K"]>snap["KDJ_D"]), f"K={snap['KDJ_K']:.1f}/D={snap['KDJ_D']:.1f}"))
-    checklist.append(("价格在EMA200之上", mark(not np.isnan(snap["EMA200"]) and price>snap["EMA200"]), f"EMA200={snap['EMA200']:.2f}"))
-    checklist.append(("布林上轨突破", mark(not np.isnan(snap['BOLL_U']) and price>snap['BOLL_U']), f"U={snap['BOLL_U']:.2f}"))
-    checklist.append(("布林下轨跌破", mark(not np.isnan(snap['BOLL_L']) and price<snap['BOLL_L']), f"L={snap['BOLL_L']:.2f}"))
-    
-    # 新增：CCI 做多/做空
-    if "CCI" in dfi.columns:
-        checklist.append(("CCI>100（做多）", mark(not np.isnan(snap["CCI"]) and snap["CCI"] > 100),
-                          f"CCI={snap['CCI']:.1f}"))
-        checklist.append(("CCI<-100（做空）", mark(not np.isnan(snap["CCI"]) and snap["CCI"] < -100),
-                          f"CCI={snap['CCI']:.1f}"))
-    # 新增：ATR 相对均值
-    if "ATR" in dfi.columns and not np.isnan(atr_mean):
-        checklist.append(("ATR低于均值（趋势稳定/利多）", mark(not np.isnan(snap["ATR"]) and snap["ATR"] < atr_mean),
-                          f"ATR={snap['ATR']:.3f} / 均值≈{atr_mean:.3f}"))
-        checklist.append(("ATR高于均值（波动放大/利空）", mark(not np.isnan(snap["ATR"]) and snap["ATR"] > atr_mean),
-                          f"ATR={snap['ATR']:.3f} / 均值≈{atr_mean:.3f}"))
-    # 新增：VWAP（成交量加权均价）
-    if "VWAP" in dfi.columns:
-        checklist.append(("价格>VWAP（做多）", mark(not np.isnan(snap.get("VWAP", np.nan)) and price > snap["VWAP"]),
-                          f"VWAP={snap['VWAP']:.2f}"))
-        checklist.append(("价格<VWAP（做空）", mark(not np.isnan(snap.get("VWAP", np.nan)) and price < snap["VWAP"]),
-                          f"VWAP={snap['VWAP']:.2f}"))
-
-    # 显示为表格
-    import pandas as pd
-    cl_df = pd.DataFrame(checklist, columns=["指标/条件","信号","说明"])
-    st.dataframe(cl_df, use_container_width=True)
-    
-    st.caption("评分系统基于当前价相对多项指标的位置与信号，仅供参考，非投资建议。")
-
-    
-    
-
-st.plotly_chart(fig_radar, use_container_width=True)
-
-
-if reasons else "信号不明确，建议观望。")
+    st.write("**依据**：", "；".join(reasons) if reasons else "信号不明确，建议观望。")
     st.info(
         f"价格百分位：**{pct_rank:.1f}%**｜"
         f"支撑区：**{support_zone[0]:,.4f} ~ {support_zone[1]:,.4f}**｜"
