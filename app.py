@@ -1109,7 +1109,17 @@ if page_clean == "策略":
     bear_trap_prob = min(0.98, sigmoid(bear_trap_score - 1.5)) * 100
     
     # ---------- UI：四宫格指标 ----------
-    c1, c2, c3, c4 = st.columns(4)
+
+    # === 从“全指标信号表格”获取利多/利空指标数量 ===
+    try:
+        _ind_table_for_counts = build_indicator_signal_table(dfi)
+        _sig_series = _ind_table_for_counts['信号'].astype(str)
+        bull_count = int(_sig_series.str.contains('利多').sum())
+        bear_count = int(_sig_series.str.contains('利空').sum())
+    except Exception:
+        bull_count, bear_count = 0, 0
+
+    c1, c2, c3 = st.columns(3)
     c1.metric("做多评分", f"{long_score:.0f}/100")
     c2.metric("做空评分", f"{short_score:.0f}/100")
     c3.metric("诱多概率", f"{bull_trap_prob:.1f}%")
@@ -1127,14 +1137,6 @@ if page_clean == "策略":
         ind_table = build_indicator_signal_table(dfi)
         st.subheader("实时策略指标表格（全指标）")
         st.dataframe(ind_table, use_container_width=True)
-
-# === 提取利多/利空指标数量 ===
-try:
-    bull_count = (signal_df['信号'] == '利多').sum() if '信号' in signal_df.columns else 0
-    bear_count = (signal_df['信号'] == '利空').sum() if '信号' in signal_df.columns else 0
-except Exception as e:
-    bull_count, bear_count = 0, 0
-
     except Exception as e:
         st.info(f"指标表格生成遇到问题：{e}")
 
@@ -1204,11 +1206,11 @@ except Exception as e:
     
     c1,c2,c3,c4 = st.columns(4)
     c1.metric("最新价", f"{price:,.4f}")
-c2.metric("建议", f"{decision}  利多指标{bull_count} / 利空指标{bear_count}")
+    c2.metric("建议", decision)
     c3.metric("评分", str(score))
     c4.metric("ATR", f"{atr_val:,.4f}")
     
-#    st.write("**依据**：", "； ".join(reasons) if reasons else "信号不明确，建议观望。")
+    # （已移除依据显示）
     st.info(
         f"价格百分位：**{pct_rank:.1f}%**｜"
         f"支撑区：**{support_zone[0]:,.4f} ~ {support_zone[1]:,.4f}**｜"
