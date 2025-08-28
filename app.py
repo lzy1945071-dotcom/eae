@@ -212,7 +212,7 @@ def load_coingecko_ohlc_robust(coin_id: str, interval_sel: str):
             if isinstance(arr, list) and len(arr) > 0:
                 rows = [(pd.to_datetime(x[0], unit="ms"), float(x[1]), float(x[2]), float(x[3]), float(x[4])) for x in arr]
                 return pd.DataFrame(rows, columns=["Date","Open","High","Low","Close"]).set_index("Date")
-    except Exception:
+    except Exception as e:
         st.error(f"发生错误: {e}")
         pass
     try:
@@ -231,7 +231,7 @@ def load_coingecko_ohlc_robust(coin_id: str, interval_sel: str):
             ohlc = s.resample("1D").agg(["first","max","min","last"]).dropna()
             ohlc.columns = ["Open","High","Low","Close"]
             return ohlc
-    except Exception:
+    except Exception as e:
         st.error(f"发生错误: {e}")
         pass
     return pd.DataFrame()
@@ -248,7 +248,7 @@ def load_tokeninsight_ohlc(api_base_url: str, coin_id: str, interval_sel: str):
         if isinstance(data, list) and data:
             rows = [(pd.to_datetime(x[0], unit="ms"), float(x[1]), float(x[2]), float(x[3]), float(x[4])) for x in data]
             return pd.DataFrame(rows, columns=["Date","Open","High","Low","Close"]).set_index("Date")
-    except Exception:
+    except Exception as e:
         st.error(f"发生错误: {e}")
         pass
     return load_coingecko_ohlc_robust(coin_id, interval_sel)
@@ -301,7 +301,7 @@ def parse_int_list(text):
     try:
         lst = [int(x.strip()) for x in text.split(",") if x.strip()]
         return [x for x in lst if x > 0]
-    except Exception:
+    except Exception as e:
         st.error(f"发生错误: {e}")
         pass
         return []
@@ -368,7 +368,7 @@ def add_indicators(df):
         try:
             ps = ta.trend.PSARIndicator(high=high, low=low, close=close, step=float(psar_step), max_step=float(psar_max_step))
             out["PSAR"] = ps.psar()
-        except Exception:
+        except Exception as e:
             st.error(f"发生错误: {e}")
             pass
             out["PSAR"] = np.nan
@@ -948,7 +948,7 @@ if page_clean == "策略":
         try:
             import numpy as _np
             return float(x) if (x is not None and not _np.isnan(x)) else float(default)
-        except Exception:
+        except Exception as e:
             st.error(f"发生错误: {e}")
             pass
             return float(default)
@@ -1148,7 +1148,7 @@ def get_close_series(sym):
         else:
             d = load_yf(sym, interval)
             return d["Close"].rename(sym) if not d.empty else None
-    except Exception:
+    except Exception as e:
         st.error(f"发生错误: {e}")
         pass
         return None
