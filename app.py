@@ -1159,32 +1159,6 @@ if page_clean == "策略":
 
     
 
-# ================= 雷达图显示（评分构成） =================
-    # 使用已计算的子评分（0~1）并映射到0~100
-    def _nz(x, default=0.5):
-        try:
-            import numpy as _np
-            return float(x) if (x is not None and not _np.isnan(x)) else float(default)
-        except Exception:
-            return float(default)
-    radar_factors = ["趋势","动能","超买超卖","波动","量能","其它"]
-    radar_values01 = [
-        _nz(trend_up_score), _nz(mom_up_score), _nz(obos_up_score), _nz(vol_score), _nz(volu_up_score), _nz(extras_up)
-    ]
-    radar_values = [v*100 for v in radar_values01]
-    fig_radar = go.Figure()
-    fig_radar.add_trace(go.Scatterpolar(
-        r=radar_values + [radar_values[0]],
-        theta=radar_factors + [radar_factors[0]],
-        fill='toself',
-        name='评分构成'
-    ))
-    fig_radar.update_layout(
-        polar=dict(radialaxis=dict(visible=True, range=[0,100])),
-        showlegend=False,
-        title="评分构成雷达图"
-    )
-    st.plotly_chart(fig_radar, use_container_width=True)
 
     # === 实时策略指标信息表格（固定全指标，不依赖侧边栏开关） ===
     try:
