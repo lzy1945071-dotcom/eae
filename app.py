@@ -810,8 +810,6 @@ if page_clean == "K线图":
             xanchor="right",
             x=1
         ),
-        # 添加副图
-        grid=dict(rows=2, columns=1, vertical_spacing=0.05, roworder="bottom to top")
     )
     
     # 添加副图指标
