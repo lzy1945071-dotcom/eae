@@ -1234,7 +1234,6 @@ if page_clean == "策略":
     # 显示为表格
     import pandas as pd
     cl_df = pd.DataFrame(checklist, columns=["指标/条件","信号","说明"])
-    st.dataframe(cl_df, use_container_width=True)
     
     st.caption("评分系统基于当前价相对多项指标的位置与信号，仅供参考，非投资建议。")
 
