@@ -222,6 +222,45 @@ def build_indicator_signal_table(dfi):
             expl = "位于布林带内，上下空间均有限"
         rows.append(["布林带", f"上={fmt(bu,2)}, 中={fmt(bm,2)}, 下={fmt(bl,2)}", "轨道/价位", f"{sig}；{expl}"])
 
+    # ----- 新增：波段趋势 (Swing Trend) -----
+    dip_series = dfi.get("DIP", pd.Series(dtype=float))
+    din_series = dfi.get("DIN", pd.Series(dtype=float))
+    adx_series = dfi.get("ADX", pd.Series(dtype=float))
+
+    if not dip_series.empty and not din_series.empty and not adx_series.empty and len(dfi.dropna(subset=['DIP', 'DIN', 'ADX'])) > 20:
+        last_dip = dip_series.iloc[-1]
+        last_din = din_series.iloc[-1]
+        adx_val = adx_series.iloc[-1]
+        
+        if not any(np.isnan([last_dip, last_din, adx_val])):
+            adx_slope = adx_series.diff().rolling(3).mean().iloc[-1] if len(adx_series) > 3 else 0
+
+            # 寻找当前趋势的起点
+            direction_series = (dip_series > din_series)
+            crossover_points = direction_series.diff().abs()
+            trend_start_indices = np.where(crossover_points == 1)[0]
+            duration = (len(dfi) - trend_start_indices[-1]) if len(trend_start_indices) > 0 else len(dfi)
+
+            stage = "震荡/无明显趋势"
+            expl = f"ADX={adx_val:.1f}. "
+
+            if adx_val < 20:
+                expl += "ADX低于20，趋势不明朗。"
+            elif duration <= 10 and adx_slope > 0 and adx_val > 20:
+                stage = "波段前期"
+                expl += f"趋势持续{duration}根K线，ADX上升，新趋势可能正在形成。"
+            elif duration <= 35 and adx_val > 25:
+                stage = "波段中期"
+                expl += f"趋势持续{duration}根K线，ADX维持高位，趋势延续中。"
+            else: 
+                stage = "波段末期"
+                expl += f"趋势持续{duration}根K线较长或ADX从高位回落({fmt(adx_slope,3)})，警惕趋势反转或盘整。"
+            
+            trend_type = "多头" if last_dip > last_din else "空头"
+            sig = f"{trend_type}趋势 / {stage}"
+            rows.append(["波段趋势", f"ADX={fmt(adx_val,1)}, 持续={duration}根", sig, expl])
+
+
     df_view = pd.DataFrame(rows, columns=["指标","数值/关键","信号","说明"])
     return df_view
 
@@ -269,7 +308,10 @@ st.sidebar.header("🔄 刷新")
 auto_refresh = st.sidebar.checkbox("启用自动刷新", value=False)
 if auto_refresh:
     refresh_interval = st.sidebar.number_input("自动刷新间隔(秒)", min_value=1, value=60, step=1)
-    st_autorefresh(interval=refresh_interval * 1000, key="auto_refresh")
+    # This is a placeholder for where st_autorefresh would be called if it were a real library function
+    # For a real implementation, you might need a community component like streamlit-autorefresh
+    # from streamlit_autorefresh import st_autorefresh
+    # st_autorefresh(interval=refresh_interval * 1000, key="auto_refresh")
 
 
 
@@ -560,9 +602,11 @@ def add_indicators(df):
     if use_atr: out["ATR"] = ta.volatility.AverageTrueRange(high, low, close, window=int(atr_window)).average_true_range()
 
     # ===== 新增指标 =====
-    if use_vwap:
+    if use_vwap and "Volume" in out.columns and not out["Volume"].isnull().all():
         # 修复 VWAP 计算
         typical_price = (high + low + close) / 3
+        # VWAP is typically calculated on an intraday basis, so a rolling sum is a common approximation for longer periods
+        # For simplicity, a cumulative sum is used here, which is more accurate for a fixed period from the start of the data
         vwap = (typical_price * vol).cumsum() / vol.cumsum()
         out["VWAP"] = vwap
     if use_adx:
@@ -578,13 +622,13 @@ def add_indicators(df):
         srsi = ta.momentum.StochRSIIndicator(close=close, window=int(stochrsi_window))
         out["StochRSI_K"] = srsi.stochrsi_k()
         out["StochRSI_D"] = srsi.stochrsi_d()
-    if use_mfi:
+    if use_mfi and "Volume" in out.columns and not out["Volume"].isnull().all():
         mfi = ta.volume.MFIIndicator(high=high, low=low, close=close, volume=vol, window=int(mfi_window))
         out["MFI"] = mfi.money_flow_index()
     if use_cci:
         cci = ta.trend.CCIIndicator(high=high, low=low, close=close, window=int(cci_window))
         out["CCI"] = cci.cci()
-    if use_obv:
+    if use_obv and "Volume" in out.columns and not out["Volume"].isnull().all():
         obv = ta.volume.OnBalanceVolumeIndicator(close=close, volume=vol)
         out["OBV"] = obv.on_balance_volume()
     if use_psar:
@@ -600,8 +644,8 @@ def add_indicators(df):
         low_min = low.rolling(window=int(kdj_window)).min()
         high_max = high.rolling(window=int(kdj_window)).max()
         rsv = (close - low_min) / (high_max - low_min) * 100
-        out["KDJ_K"] = rsv.rolling(window=int(kdj_smooth_k)).mean()
-        out["KDJ_D"] = out["KDJ_K"].rolling(window=int(kdj_smooth_d)).mean()
+        out["KDJ_K"] = rsv.ewm(com=int(kdj_smooth_k)-1).mean()
+        out["KDJ_D"] = out["KDJ_K"].ewm(com=int(kdj_smooth_d)-1).mean()
         out["KDJ_J"] = 3 * out["KDJ_K"] - 2 * out["KDJ_D"]
 
     return out
@@ -1074,6 +1118,29 @@ if page_clean == "策略":
         weights["volume"]*(1-volu_up_score) +
         weights["extras"]*extras_dn
     ) / sum(weights.values()) * 100.0
+
+    # ---------- (新增) 波段趋势分析 ----------
+    swing_score = 0.5 # 默认为中性
+    dip_series = dfi.get("DIP", pd.Series(dtype=float))
+    din_series = dfi.get("DIN", pd.Series(dtype=float))
+    adx_series = dfi.get("ADX", pd.Series(dtype=float))
+    if not dip_series.empty and not din_series.empty and not adx_series.empty and len(dfi.dropna(subset=['DIP', 'DIN', 'ADX'])) > 20:
+        adx_val = adx_series.iloc[-1]
+        if not pd.isna(adx_val):
+            adx_slope = adx_series.diff().rolling(3).mean().iloc[-1] if len(adx_series) > 3 else 0
+            direction_series = (dip_series > din_series)
+            crossover_points = direction_series.diff().abs()
+            trend_start_indices = np.where(crossover_points == 1)[0]
+            duration = (len(dfi) - trend_start_indices[-1]) if len(trend_start_indices) > 0 else len(dfi)
+
+            if adx_val < 20:
+                swing_score = 0.4 # 震荡，略低于中性
+            elif duration <= 10 and adx_slope > 0 and adx_val > 20:
+                swing_score = 0.8 # 前期，高分
+            elif duration <= 35 and adx_val > 25:
+                swing_score = 0.6 # 中期，中高分
+            else: 
+                swing_score = 0.25 # 末期，低分
     
     # ---------- 斐波那契盈亏比（基于最近N根K线高低点） ----------
     # 复用上文斐波那契设置，如果变量不存在则临时计算
@@ -1159,7 +1226,7 @@ if page_clean == "策略":
 
     
 
-# ================= 雷达图显示（评分构成） =================
+    # ================= 雷达图显示（评分构成） =================
     # 使用已计算的子评分（0~1）并映射到0~100
     def _nz(x, default=0.5):
         try:
@@ -1167,9 +1234,9 @@ if page_clean == "策略":
             return float(x) if (x is not None and not _np.isnan(x)) else float(default)
         except Exception:
             return float(default)
-    radar_factors = ["趋势","动能","超买超卖","波动","量能","其它"]
+    radar_factors = ["趋势","动能","超买超卖","波动","量能","其它", "波段阶段"]
     radar_values01 = [
-        _nz(trend_up_score), _nz(mom_up_score), _nz(obos_up_score), _nz(vol_score), _nz(volu_up_score), _nz(extras_up)
+        _nz(trend_up_score), _nz(mom_up_score), _nz(obos_up_score), _nz(vol_score), _nz(volu_up_score), _nz(extras_up), _nz(swing_score)
     ]
     radar_values = [v*100 for v in radar_values01]
     fig_radar = go.Figure()
