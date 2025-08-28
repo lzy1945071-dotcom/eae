@@ -1000,19 +1000,21 @@ if page_clean == "策略":
     import pandas as pd
     import html
 
-    def _append_icon(row):
-        label = str(row["指标/条件"])
-        desc = str(row["说明"])
-        desc = html.escape(desc)
+    
+def _append_icon(row):
+    label = str(row["指标/条件"])
+    desc = str(row["说明"])
+    desc = html.escape(desc)
 
-        bull_keys = ["做多","利多","金叉","上穿","上破","突破","之上","在上方"]
-        bear_keys = ["做空","利空","死叉","下穿","下破","跌破","之下","在下方","超买"]
+    bull_keys = ["做多","利多","金叉","上穿","上破","突破","之上","在上方"]
+    bear_keys = ["做空","利空","死叉","下穿","下破","跌破","之下","在下方","超买"]
 
-        if any(k in label for k in bull_keys):
-            return f"{desc} <span style='color:green;font-weight:bold'>▲</span>"
-        if any(k in label for k in bear_keys):
-            return f"{desc} <span style='color:red;font-weight:bold'>▼</span>"
-        return desc
+    if any(k in label for k in bull_keys):
+        return f"{desc} 🟢"
+    if any(k in label for k in bear_keys):
+        return f"{desc} 🔴"
+    return desc
+
 
     cl_df = pd.DataFrame(checklist, columns=["指标/条件","信号","说明"])
     cl_df["说明"] = cl_df.apply(_append_icon, axis=1)
