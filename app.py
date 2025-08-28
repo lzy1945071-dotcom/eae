@@ -386,8 +386,8 @@ dfi = add_indicators(df).dropna(how="all")
 def detect_signals(df):
     """检测各种交易信号"""
     signals = pd.DataFrame(index=df.index)
-long_signals = signals  # ✅ 做多信号列表
-short_signals = ["✅" if s=="" else "" for s in signals]  # ✅ 简单示例：做空与做多相反，可根据实际逻辑调整
+    long_signals = signals  # ✅ 做多信号列表
+    short_signals = ["✅" if s=="" else "" for s in signals]  # ✅ 简单示例：做空与做多相反，可根据实际逻辑调整
     
     # MA交叉信号
     if "MA20" in df.columns and "MA50" in df.columns:
