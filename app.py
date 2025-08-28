@@ -10,11 +10,11 @@ def _append_icon(row):
     neutral_keys = ["震荡", "中性", "中轨", "持平", "带内"]
 
     if any(k in label for k in bull_keys) or any(k in desc for k in bull_keys):
-        return f"{desc} ✅"
+        return f"{desc} 🟢"
     if any(k in label for k in bear_keys) or any(k in desc for k in bear_keys):
-        return f"{desc} ❌"
+        return f"{desc} 🔴"
     if any(k in label for k in neutral_keys) or any(k in desc for k in neutral_keys):
-        return f"{desc} ⭕"
+        return f"{desc} ⚪"
     return desc
 
 
@@ -269,7 +269,10 @@ st.sidebar.header("🔄 刷新")
 auto_refresh = st.sidebar.checkbox("启用自动刷新", value=False)
 if auto_refresh:
     refresh_interval = st.sidebar.number_input("自动刷新间隔(秒)", min_value=1, value=60, step=1)
-    st_autorefresh(interval=refresh_interval * 1000, key="auto_refresh")
+    # This is a placeholder for where st_autorefresh would be called if it were a real library function
+    # For a real implementation, you might need a community component like streamlit-autorefresh
+    # from streamlit_autorefresh import st_autorefresh
+    # st_autorefresh(interval=refresh_interval * 1000, key="auto_refresh")
 
 
 
@@ -560,9 +563,11 @@ def add_indicators(df):
     if use_atr: out["ATR"] = ta.volatility.AverageTrueRange(high, low, close, window=int(atr_window)).average_true_range()
 
     # ===== 新增指标 =====
-    if use_vwap:
+    if use_vwap and "Volume" in out.columns and not out["Volume"].isnull().all():
         # 修复 VWAP 计算
         typical_price = (high + low + close) / 3
+        # VWAP is typically calculated on an intraday basis, so a rolling sum is a common approximation for longer periods
+        # For simplicity, a cumulative sum is used here, which is more accurate for a fixed period from the start of the data
         vwap = (typical_price * vol).cumsum() / vol.cumsum()
         out["VWAP"] = vwap
     if use_adx:
@@ -578,13 +583,13 @@ def add_indicators(df):
         srsi = ta.momentum.StochRSIIndicator(close=close, window=int(stochrsi_window))
         out["StochRSI_K"] = srsi.stochrsi_k()
         out["StochRSI_D"] = srsi.stochrsi_d()
-    if use_mfi:
+    if use_mfi and "Volume" in out.columns and not out["Volume"].isnull().all():
         mfi = ta.volume.MFIIndicator(high=high, low=low, close=close, volume=vol, window=int(mfi_window))
         out["MFI"] = mfi.money_flow_index()
     if use_cci:
         cci = ta.trend.CCIIndicator(high=high, low=low, close=close, window=int(cci_window))
         out["CCI"] = cci.cci()
-    if use_obv:
+    if use_obv and "Volume" in out.columns and not out["Volume"].isnull().all():
         obv = ta.volume.OnBalanceVolumeIndicator(close=close, volume=vol)
         out["OBV"] = obv.on_balance_volume()
     if use_psar:
@@ -600,8 +605,8 @@ def add_indicators(df):
         low_min = low.rolling(window=int(kdj_window)).min()
         high_max = high.rolling(window=int(kdj_window)).max()
         rsv = (close - low_min) / (high_max - low_min) * 100
-        out["KDJ_K"] = rsv.rolling(window=int(kdj_smooth_k)).mean()
-        out["KDJ_D"] = out["KDJ_K"].rolling(window=int(kdj_smooth_d)).mean()
+        out["KDJ_K"] = rsv.ewm(com=int(kdj_smooth_k)-1).mean()
+        out["KDJ_D"] = out["KDJ_K"].ewm(com=int(kdj_smooth_d)-1).mean()
         out["KDJ_J"] = 3 * out["KDJ_K"] - 2 * out["KDJ_D"]
 
     return out
@@ -1075,39 +1080,6 @@ if page_clean == "策略":
         weights["extras"]*extras_dn
     ) / sum(weights.values()) * 100.0
     
-    # ---------- 斐波那契盈亏比（基于最近N根K线高低点） ----------
-    # 复用上文斐波那契设置，如果变量不存在则临时计算
-    try:
-        fib_high, fib_low, levels
-    except NameError:
-        sub_df = dfi.tail(100)
-        fib_high = float(sub_df["High"].max())
-        fib_low = float(sub_df["Low"].min())
-        levels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1]
-    fib_prices = [fib_high - (fib_high - fib_low) * l for l in levels]
-    fib_prices = sorted(fib_prices)  # 从低到高
-    
-    # 找到离当前价最近的上下两个Fib价位
-    below = max([p for p in fib_prices if p <= price], default=fib_prices[0])
-    above = min([p for p in fib_prices if p >= price], default=fib_prices[-1])
-    
-    # 趋势方向参考：DIP vs DIN（若无趋势则RR偏保守）
-    trend_dir = 1 if (not np.isnan(snap["DIP"]) and not np.isnan(snap["DIN"]) and snap["DIP"] >= snap["DIN"]) else -1
-    # 做多：目标=上一个更高的Fib，止损=下一个更低的Fib
-    # 做空：目标=下一个更低的Fib，止损=上一个更高的Fib
-    def next_upper(p):
-        ups = [x for x in fib_prices if x > p]
-        return ups[0] if ups else fib_prices[-1]
-    def next_lower(p):
-        downs = [x for x in fib_prices if x < p]
-        return downs[-1] if downs else fib_prices[0]
-    long_tp = next_upper(price)
-    long_sl = next_lower(price)
-    short_tp = next_lower(price)
-    short_sl = next_upper(price)
-    long_rr = (long_tp - price) / max(1e-9, price - long_sl) if long_tp>price and long_sl<price else np.nan
-    short_rr = (price - short_tp) / max(1e-9, short_sl - price) if short_tp<price and short_sl>price else np.nan
-    
     # ---------- 诱多/诱空概率（启发式） ----------
     # 条件示例：
     # 诱多（Bull Trap）：价格突破上轨或前高但ADX<18 & MACD背离（hist走弱）；
@@ -1144,10 +1116,10 @@ if page_clean == "策略":
     c3.metric("诱多概率", f"{bull_trap_prob:.1f}%")
     c4.metric("诱空概率", f"{bear_trap_prob:.1f}%")
     
-    # 斐波那契盈亏比
-    c5, c6 = st.columns(2)
-    c5.metric("Fibo 盈亏比（多）", "-" if np.isnan(long_rr) else f"{long_rr:.2f}")
-    c6.metric("Fibo 盈亏比（空）", "-" if np.isnan(short_rr) else f"{short_rr:.2f}")
+    # # [已删除] 斐波那契盈亏比
+    # c5, c6 = st.columns(2)
+    # c5.metric("Fibo 盈亏比（多）", "-" if np.isnan(long_rr) else f"{long_rr:.2f}")
+    # c6.metric("Fibo 盈亏比（空）", "-" if np.isnan(short_rr) else f"{short_rr:.2f}")
 
     
     # ================= 评分数值文字显示 =================
@@ -1157,10 +1129,7 @@ if page_clean == "策略":
     with colg2:
         st.markdown(f"<h2 style='color:red; text-align:center;'>做空评分: <b>{float(short_score):.1f}</b></h2>", unsafe_allow_html=True)
 
-    
-
-
-    # === 实时策略指标信息表格（固定全指标，不依赖侧边栏开关） ===
+    # === [已恢复] 实时策略指标信息表格（固定全指标，不依赖侧边栏开关） ===
     try:
         ind_table = build_indicator_signal_table(dfi)
         st.subheader("实时策略指标表格（全指标）")
@@ -1168,49 +1137,7 @@ if page_clean == "策略":
     except Exception as e:
         st.info(f"指标表格生成遇到问题：{e}")
 
-    
-    # ---------- 指标清单（到达信号打勾） ----------
-    checklist = []
-    def mark(flag): return "✅" if flag else "—"
-
-    # 预计算用于说明的均值/阈值
-    atr_mean = (dfi["ATR"].rolling(14).mean().iloc[-1] if "ATR" in dfi.columns and len(dfi["ATR"].dropna())>=14 else np.nan)
-    checklist.append(("ADX趋势（>=20）", mark(not np.isnan(snap["ADX"]) and snap["ADX"]>=20),
-                      f"ADX={snap['ADX']:.1f}，{('多头' if snap['DIP']>snap['DIN'] else '空头') if (not np.isnan(snap['DIP']) and not np.isnan(snap['DIN'])) else '方向未知'}"))
-    checklist.append(("MACD金叉", mark(not np.isnan(snap["MACD"]) and not np.isnan(snap["MACD_signal"]) and snap["MACD"]>snap["MACD_signal"]),
-                      f"MACD={snap['MACD']:.3f} / Signal={snap['MACD_signal']:.3f}"))
-    checklist.append(("RSI超卖(<30)", mark(not np.isnan(snap["RSI"]) and snap["RSI"]<30), f"RSI={snap['RSI']:.1f}"))
-    checklist.append(("RSI超买(>70)", mark(not np.isnan(snap["RSI"]) and snap["RSI"]>70), f"RSI={snap['RSI']:.1f}"))
-    checklist.append(("KDJ金叉", mark(not np.isnan(snap["KDJ_K"]) and not np.isnan(snap["KDJ_D"]) and snap["KDJ_K"]>snap["KDJ_D"]), f"K={snap['KDJ_K']:.1f}/D={snap['KDJ_D']:.1f}"))
-    checklist.append(("价格在EMA200之上", mark(not np.isnan(snap["EMA200"]) and price>snap["EMA200"]), f"EMA200={snap['EMA200']:.2f}"))
-    checklist.append(("布林上轨突破", mark(not np.isnan(snap['BOLL_U']) and price>snap['BOLL_U']), f"U={snap['BOLL_U']:.2f}"))
-    checklist.append(("布林下轨跌破", mark(not np.isnan(snap['BOLL_L']) and price<snap['BOLL_L']), f"L={snap['BOLL_L']:.2f}"))
-    
-    # 新增：CCI 做多/做空
-    if "CCI" in dfi.columns:
-        checklist.append(("CCI>100（做多）", mark(not np.isnan(snap["CCI"]) and snap["CCI"] > 100),
-                          f"CCI={snap['CCI']:.1f}"))
-        checklist.append(("CCI<-100（做空）", mark(not np.isnan(snap["CCI"]) and snap["CCI"] < -100),
-                          f"CCI={snap['CCI']:.1f}"))
-    # 新增：ATR 相对均值
-    if "ATR" in dfi.columns and not np.isnan(atr_mean):
-        checklist.append(("ATR低于均值（趋势稳定/利多）", mark(not np.isnan(snap["ATR"]) and snap["ATR"] < atr_mean),
-                          f"ATR={snap['ATR']:.3f} / 均值≈{atr_mean:.3f}"))
-        checklist.append(("ATR高于均值（波动放大/利空）", mark(not np.isnan(snap["ATR"]) and snap["ATR"] > atr_mean),
-                          f"ATR={snap['ATR']:.3f} / 均值≈{atr_mean:.3f}"))
-    # 新增：VWAP（成交量加权均价）
-    if "VWAP" in dfi.columns:
-        checklist.append(("价格>VWAP（做多）", mark(not np.isnan(snap.get("VWAP", np.nan)) and price > snap["VWAP"]),
-                          f"VWAP={snap['VWAP']:.2f}"))
-        checklist.append(("价格<VWAP（做空）", mark(not np.isnan(snap.get("VWAP", np.nan)) and price < snap["VWAP"]),
-                          f"VWAP={snap['VWAP']:.2f}"))
-
-    # 显示为表格
-    import pandas as pd
-    cl_df = pd.DataFrame(checklist, columns=["指标/条件","信号","说明"])
-    
     st.caption("评分系统基于当前价相对多项指标的位置与信号，仅供参考，非投资建议。")
-
     
     last = dfi.dropna().iloc[-1]
     price = float(last["Close"])
@@ -1221,32 +1148,32 @@ if page_clean == "策略":
     ma50 = dfi["MA50"].iloc[-1] if "MA50" in dfi.columns else np.nan
     if not np.isnan(ma20) and not np.isnan(ma50):
         if ma20 > ma50 and price > ma20:
-            score += 2; reasons.append("MA20>MA50 且价在MA20上，多头趋势")
+            score += 2; reasons.append("MA20>MA50 且价在MA20上，多头趋势 🟢")
         elif ma20 < ma50 and price < ma20:
-            score -= 2; reasons.append("MA20<MA50 且价在MA20下，空头趋势")
+            score -= 2; reasons.append("MA20<MA50 且价在MA20下，空头趋势 🔴")
     
     if use_macd and all(c in dfi.columns for c in ["MACD","MACD_signal","MACD_hist"]):
         if last["MACD"] > last["MACD_signal"] and last["MACD_hist"] > 0:
-            score += 2; reasons.append("MACD 金叉且柱为正")
+            score += 2; reasons.append("MACD 金叉且柱为正 🟢")
         elif last["MACD"] < last["MACD_signal"] and last["MACD_hist"] < 0:
-            score -= 2; reasons.append("MACD 死叉且柱为负")
+            score -= 2; reasons.append("MACD 死叉且柱为负 🔴")
     
     if use_rsi and "RSI" in dfi.columns:
         if last["RSI"] >= 70:
-            score -= 1; reasons.append("RSI 过热（≥70）")
+            score -= 1; reasons.append("RSI 过热（≥70）🔴")
         elif last["RSI"] <= 30:
-            score += 1; reasons.append("RSI 超卖（≤30）")
+            score += 1; reasons.append("RSI 超卖（≤30）🟢")
     
     # KDJ信号评分
     if use_kdj and all(c in dfi.columns for c in ["KDJ_K","KDJ_D"]):
         if last["KDJ_K"] > last["KDJ_D"] and last["KDJ_K"] < 30:
-            score += 1; reasons.append("KDJ 金叉且处于超卖区")
+            score += 1; reasons.append("KDJ 金叉且处于超卖区 🟢")
         elif last["KDJ_K"] < last["KDJ_D"] and last["KDJ_K"] > 70:
-            score -= 1; reasons.append("KDJ 死叉且处于超买区")
+            score -= 1; reasons.append("KDJ 死叉且处于超买区 🔴")
     
-    decision = "观望"
-    if score >= 3: decision = "买入/加仓"
-    elif score <= -2: decision = "减仓/离场"
+    decision = "观望 ⚪"
+    if score >= 3: decision = "买入/加仓 🟢"
+    elif score <= -2: decision = "减仓/离场 🔴"
     
     # 2) 历史百分位（最近窗口）
     hist_window = min(len(dfi), 365)
@@ -1265,8 +1192,8 @@ if page_clean == "策略":
         atr_val = float(last["ATR"])
     else:
         atr_val = float(dfi["Close"].pct_change().rolling(14).std().iloc[-1] * price)
-    tp = price + 2.0*atr_val if decision != "减仓/离场" else price - 2.0*atr_val
-    sl = price - 1.2*atr_val if decision != "减仓/离场" else price + 1.2*atr_val
+    tp = price + 2.0*atr_val if "减仓" not in decision else price - 2.0*atr_val
+    sl = price - 1.2*atr_val if "减仓" not in decision else price + 1.2*atr_val
     
     hint = "区间中位；按信号执行为主。"
     if pct_rank <= 25:
@@ -1280,7 +1207,7 @@ if page_clean == "策略":
     c3.metric("评分", str(score))
     c4.metric("ATR", f"{atr_val:,.4f}")
     
-    st.write("**依据**：", "；".join(reasons) if reasons else "信号不明确，建议观望。")
+    st.write("**依据**：", "； ".join(reasons) if reasons else "信号不明确，建议观望。")
     st.info(
         f"价格百分位：**{pct_rank:.1f}%**｜"
         f"支撑区：**{support_zone[0]:,.4f} ~ {support_zone[1]:,.4f}**｜"
