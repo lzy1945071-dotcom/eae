@@ -1119,7 +1119,7 @@ if page_clean == "策略":
     except Exception:
         bull_count, bear_count = 0, 0
 
-    c1, c2, c3 = st.columns(3)
+    c1, c2, c3, c4 = st.columns(4)
     c1.metric("做多评分", f"{long_score:.0f}/100")
     c2.metric("做空评分", f"{short_score:.0f}/100")
     c3.metric("诱多概率", f"{bull_trap_prob:.1f}%")
