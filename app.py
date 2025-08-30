@@ -1191,8 +1191,8 @@ if page_clean == "策略":
     c1,c2,c3,c4 = st.columns(4)
     c1.metric("最新价", f"{price:,.4f}")
     c2.metric("建议", decision)
-    c3.metric("评分", str(score))
-    c4.metric("ATR", f"{atr_val:,.4f}")
+    c3.metric("做多信号", bull_count)
+    c4.metric("做空信号", bear_count)
     
     st.info(
         f"价格百分位：**{pct_rank:.1f}%**｜"
