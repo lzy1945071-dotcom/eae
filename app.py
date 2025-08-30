@@ -986,7 +986,7 @@ if page_clean == "策略":
 
     # === 新增：做多/做空评分 + ADX趋势强度 + 斐波那契盈亏比 + 诱多/诱空概率 + 指标打勾清单 ===
     # 取最新一根K线数据
-    last = dfi.dropna().iloc[-1]
+    last = dfi.iloc[-1]
     price = float(last["Close"])
     high = float(last["High"])
     low = float(last["Low"])
@@ -1125,23 +1125,7 @@ if page_clean == "策略":
     c3.metric("诱多概率", f"{bull_trap_prob:.1f}%")
     c4.metric("诱空概率", f"{bear_trap_prob:.1f}%")
     
-    # ================= 评分数值文字显示 =================
-    colg1, colg2 = st.columns(2)
-    with colg1:
-        st.markdown(f"<h2 style='color:green; text-align:center;'>做多评分: <b>{float(long_score):.1f}</b></h2>", unsafe_allow_html=True)
-    with colg2:
-        st.markdown(f"<h2 style='color:red; text-align:center;'>做空评分: <b>{float(short_score):.1f}</b></h2>", unsafe_allow_html=True)
-
-    # === [已恢复] 实时策略指标信息表格（固定全指标，不依赖侧边栏开关） ===
-    try:
-        ind_table = build_indicator_signal_table(dfi)
-        st.subheader("实时策略指标表格（全指标）")
-        st.dataframe(ind_table, use_container_width=True)
-    except Exception as e:
-        st.info(f"指标表格生成遇到问题：{e}")
-
-    st.caption("评分系统基于当前价相对多项指标的位置与信号，仅供参考，非投资建议。")
-    
+    # 挪到顶部的计算和显示部分
     last = dfi.dropna().iloc[-1]
     price = float(last["Close"])
     
@@ -1210,7 +1194,6 @@ if page_clean == "策略":
     c3.metric("评分", str(score))
     c4.metric("ATR", f"{atr_val:,.4f}")
     
-    # （已移除依据显示）
     st.info(
         f"价格百分位：**{pct_rank:.1f}%**｜"
         f"支撑区：**{support_zone[0]:,.4f} ~ {support_zone[1]:,.4f}**｜"
@@ -1218,6 +1201,16 @@ if page_clean == "策略":
         f"建议止损：**{sl:,.4f}** ｜ 建议止盈：**{tp:,.4f}**\n\n"
         f"提示：{hint}"
     )
+    
+    # === [已恢复] 实时策略指标信息表格（固定全指标，不依赖侧边栏开关） ===
+    try:
+        ind_table = build_indicator_signal_table(dfi)
+        st.subheader("实时策略指标表格（全指标）")
+        st.dataframe(ind_table, use_container_width=True)
+    except Exception as e:
+        st.info(f"指标表格生成遇到问题：{e}")
+
+    st.caption("评分系统基于当前价相对多项指标的位置与信号，仅供参考，非投资建议。")
     
     # ========================= 胜率统计（简版） =========================
     def simple_backtest(df):
