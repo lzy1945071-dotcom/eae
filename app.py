@@ -980,27 +980,336 @@ if page_clean == "K线图":
     })
     
 if page_clean == "策略":
+    # ========================= 实时策略建议（增强版） =========================
+    st.markdown("---")
+    st.subheader("🧭 实时策略建议（非投资建议）")
+
+    # === 新增：做多/做空评分 + ADX趋势强度 + 斐波那契盈亏比 + 诱多/诱空概率 + 指标打勾清单 ===
+    # 取最新一根K线数据
+    last = dfi.dropna().iloc[-1]
+    price = float(last["Close"])
+    high = float(last["High"])
+    low = float(last["Low"])
     
-# ========================= 实时策略建议（增强版） =========================
-st.markdown("---")
-st.subheader("🧭 实时策略建议（非投资建议）")
+    # ---------- 指标快照（安全获取） ----------
+    def g(col, default=np.nan):
+        return float(last[col]) if col in dfi.columns and not np.isnan(last[col]) else default
+    
+    snap = {
+        "MA20": g("MA20"), "MA50": g("MA50"), "EMA200": g("EMA200"),
+        "MACD": g("MACD"), "MACD_signal": g("MACD_signal"), "MACD_hist": g("MACD_hist"),
+        "RSI": g("RSI"), "ATR": g("ATR"), "VWAP": g("VWAP"),
+        "ADX": g("ADX"), "DIP": g("DIP"), "DIN": g("DIN"),
+        "BOLL_U": g("BOLL_U"), "BOLL_L": g("BOLL_L"),
+        "KDJ_K": g("KDJ_K"), "KDJ_D": g("KDJ_D"), "KDJ_J": g("KDJ_J"),
+        "MFI": g("MFI") if "MFI" in dfi.columns else np.nan,
+        "CCI": g("CCI") if "CCI" in dfi.columns else np.nan,
+        "PSAR": g("PSAR") if "PSAR" in dfi.columns else np.nan,
+    }
+    
+    # ---------- 做多/做空评分（0-100） ----------
+    long_score = 0.0
+    short_score = 0.0
+    weights = {
+        "trend": 30, "momentum": 30, "overbought_oversold": 15, "volatility": 10, "volume": 10, "extras": 5
+    }
+    # 趋势（MA/EMA + DI方向）
+    trend_up = 0
+    if not np.isnan(snap["MA20"]) and not np.isnan(snap["MA50"]) and snap["MA20"] > snap["MA50"]:
+        trend_up += 1
+    if not np.isnan(snap["EMA200"]) and price > snap["EMA200"]:
+        trend_up += 1
+    di_up = 1 if (not np.isnan(snap["DIP"]) and not np.isnan(snap["DIN"]) and snap["DIP"] > snap["DIN"]) else 0
+    adx_str = 1 if (not np.isnan(snap["ADX"]) and snap["ADX"] >= 20) else 0  # ADX阈值：20认为有趋势
+    trend_up_score = (trend_up + di_up + adx_str) / 4.0  # 0~1
+    trend_dn_score = (1 - (trend_up)) / 2.0 + (1 if di_up==0 else 0)/2.0  # 粗略反向
+    
+    # 动能（MACD、KDJ交叉）
+    mom_up = 0
+    if not np.isnan(snap["MACD"]) and not np.isnan(snap["MACD_signal"]) and snap["MACD"] > snap["MACD_signal"]:
+        mom_up += 1
+    if not np.isnan(snap["KDJ_K"]) and not np.isnan(snap["KDJ_D"]) and snap["KDJ_K"] > snap["KDJ_D"]:
+        mom_up += 1
+    mom_up_score = mom_up / 2.0
+    mom_dn_score = 1 - mom_up_score
+    
+    # 超买超卖（RSI/KDJ）
+    obos_up = 0
+    if not np.isnan(snap["RSI"]):
+        if snap["RSI"] < 30: obos_up += 1
+        if snap["RSI"] > 70: obos_up -= 1
+    if not np.isnan(snap["KDJ_K"]):
+        if snap["KDJ_K"] < 20: obos_up += 1
+        if snap["KDJ_K"] > 80: obos_up -= 1
+    obos_up_score = (obos_up + 2) / 4.0  # 0~1，中性=0.5
+    obos_dn_score = 1 - obos_up_score
+    
+    # 波动（ATR占价比例，越高越不利开仓）
+    atrp = snap["ATR"]/price if not np.isnan(snap["ATR"]) and price>0 else 0.01
+    vol_score = max(0.0, 1.0 - min(1.0, atrp*10))  # ATR占比>10% 则接近0分
+    
+    # 量能（MFI/OBV不可用则忽略，这里仅用MFI中性55以下偏多，55以上偏空）
+    volu_up_score = 0.5
+    if not np.isnan(snap["MFI"]):
+        if snap["MFI"] < 45: volu_up_score = 0.7
+        elif snap["MFI"] > 55: volu_up_score = 0.3
+    
+    # 其它（CCI偏离、价格位于布林）
+    extras_up = 0.5
+    if not np.isnan(snap["BOLL_U"]) and price < snap["BOLL_U"]: extras_up += 0.1
+    if not np.isnan(snap["BOLL_L"]) and price < snap["BOLL_L"]: extras_up += 0.1  # 下轨外偏反转
+    extras_up = min(1.0, max(0.0, extras_up))
+    extras_dn = 1 - extras_up
+    
+    long_score = (
+        weights["trend"]*trend_up_score +
+        weights["momentum"]*mom_up_score +
+        weights["overbought_oversold"]*obos_up_score +
+        weights["volatility"]*vol_score +
+        weights["volume"]*volu_up_score +
+        weights["extras"]*extras_up
+    ) / sum(weights.values()) * 100.0
+    
+    short_score = (
+        weights["trend"]*trend_dn_score +
+        weights["momentum"]*mom_dn_score +
+        weights["overbought_oversold"]*obos_dn_score +
+        weights["volatility"]*vol_score +
+        weights["volume"]*(1-volu_up_score) +
+        weights["extras"]*extras_dn
+    ) / sum(weights.values()) * 100.0
+    
+    # ---------- 诱多/诱空概率（启发式） ----------
+    # 条件示例：
+    # 诱多（Bull Trap）：价格突破上轨或前高但ADX<18 & MACD背离（hist走弱）；
+    # 诱空（Bear Trap）：价格跌破下轨或前低但ADX<18 & 动能反弹。
+    def sigmoid(x): 
+        return 1/(1+np.exp(-x))
+    adx_weak = (not np.isnan(snap["ADX"]) and snap["ADX"] < 18)
+    upper_break = (not np.isnan(snap["BOLL_U"]) and price > snap["BOLL_U"])
+    lower_break = (not np.isnan(snap["BOLL_L"]) and price < snap["BOLL_L"])
+    macd_weak = (not np.isnan(snap["MACD_hist"]) and len(dfi)>3 and
+                 (dfi["MACD_hist"].iloc[-1] < dfi["MACD_hist"].iloc[-2]) )
+    kdj_overbought = (not np.isnan(snap["KDJ_K"]) and snap["KDJ_K"]>80)
+    kdj_oversold = (not np.isnan(snap["KDJ_K"]) and snap["KDJ_K"]<20)
+    
+    bull_trap_score = 0
+    if upper_break: bull_trap_score += 1
+    if adx_weak: bull_trap_score += 1
+    if macd_weak: bull_trap_score += 1
+    if kdj_overbought: bull_trap_score += 0.5
+    bull_trap_prob = min(0.98, sigmoid(bull_trap_score - 1.5)) * 100
+    
+    bear_trap_score = 0
+    if lower_break: bear_trap_score += 1
+    if adx_weak: bear_trap_score += 1
+    if not np.isnan(snap["MACD_hist"]) and dfi["MACD_hist"].iloc[-1] > dfi["MACD_hist"].iloc[-2]: 
+        bear_trap_score += 1
+    if kdj_oversold: bear_trap_score += 0.5
+    bear_trap_prob = min(0.98, sigmoid(bear_trap_score - 1.5)) * 100
+    
+    # ---------- UI：四宫格指标 ----------
 
-# 显示当前价
-st.write(f"当前价: {price}")
+    # === 从“全指标信号表格”获取利多/利空指标数量 ===
+    try:
+        _ind_table_for_counts = build_indicator_signal_table(dfi)
+        _sig_series = _ind_table_for_counts['信号'].astype(str)
+        bull_count = int(_sig_series.str.contains('利多').sum())
+        bear_count = int(_sig_series.str.contains('利空').sum())
+    except Exception:
+        bull_count, bear_count = 0, 0
 
-# ---------- 指标快照（安全获取） ----------
-def g(col, default=np.nan):
-    return float(last[col]) if col in dfi.columns and not np.isnan(last[col]) else default
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("做多评分", f"{long_score:.0f}/100")
+    c2.metric("做空评分", f"{short_score:.0f}/100")
+    c3.metric("诱多概率", f"{bull_trap_prob:.1f}%")
+    c4.metric("诱空概率", f"{bear_trap_prob:.1f}%")
+    
+    # ================= 评分数值文字显示 =================
+    colg1, colg2 = st.columns(2)
+    with colg1:
+        st.markdown(f"<h2 style='color:green; text-align:center;'>做多评分: <b>{float(long_score):.1f}</b></h2>", unsafe_allow_html=True)
+    with colg2:
+        st.markdown(f"<h2 style='color:red; text-align:center;'>做空评分: <b>{float(short_score):.1f}</b></h2>", unsafe_allow_html=True)
 
-snap = {
-    "MA20": g("MA20"), "MA50": g("MA50"), "EMA200": g("EMA200"),
-    "MACD": g("MACD"), "MACD_signal": g("MACD_signal"), "MACD_hist": g("MACD_hist"),
-    "RSI": g("RSI"), "ATR": g("ATR"), "VWAP": g("VWAP"), "ADX": g("ADX"),
-    "DIP": g("DIP"), "DIN": g("DIN"), "BOLL_U": g("BOLL_U"), "BOLL_L": g("BOLL_L"),
-    "KDJ_K": g("KDJ_K"), "KDJ_D": g("KDJ_D"), "KDJ_J": g("KDJ_J"), "MFI": g("MFI") if "MFI" in dfi.columns else np.nan,
-    "CCI": g("CCI")
-}
-# ========================= 新增模块：多指标策略组合 & 绩效预测 =========================
+    # === [已恢复] 实时策略指标信息表格（固定全指标，不依赖侧边栏开关） ===
+    try:
+        ind_table = build_indicator_signal_table(dfi)
+        st.subheader("实时策略指标表格（全指标）")
+        st.dataframe(ind_table, use_container_width=True)
+    except Exception as e:
+        st.info(f"指标表格生成遇到问题：{e}")
+
+    st.caption("评分系统基于当前价相对多项指标的位置与信号，仅供参考，非投资建议。")
+    
+    last = dfi.dropna().iloc[-1]
+    price = float(last["Close"])
+    
+    # 1) 趋势/动能评分
+    score = 0; reasons = []
+    ma20 = dfi["MA20"].iloc[-1] if "MA20" in dfi.columns else np.nan
+    ma50 = dfi["MA50"].iloc[-1] if "MA50" in dfi.columns else np.nan
+    if not np.isnan(ma20) and not np.isnan(ma50):
+        if ma20 > ma50 and price > ma20:
+            score += 2; reasons.append("MA20>MA50 且价在MA20上，多头趋势 🟢")
+        elif ma20 < ma50 and price < ma20:
+            score -= 2; reasons.append("MA20<MA50 且价在MA20下，空头趋势 🔴")
+    
+    if use_macd and all(c in dfi.columns for c in ["MACD","MACD_signal","MACD_hist"]):
+        if last["MACD"] > last["MACD_signal"] and last["MACD_hist"] > 0:
+            score += 2; reasons.append("MACD 金叉且柱为正 🟢")
+        elif last["MACD"] < last["MACD_signal"] and last["MACD_hist"] < 0:
+            score -= 2; reasons.append("MACD 死叉且柱为负 🔴")
+    
+    if use_rsi and "RSI" in dfi.columns:
+        if last["RSI"] >= 70:
+            score -= 1; reasons.append("RSI 过热（≥70）🔴")
+        elif last["RSI"] <= 30:
+            score += 1; reasons.append("RSI 超卖（≤30）🟢")
+    
+    # KDJ信号评分
+    if use_kdj and all(c in dfi.columns for c in ["KDJ_K","KDJ_D"]):
+        if last["KDJ_K"] > last["KDJ_D"] and last["KDJ_K"] < 30:
+            score += 1; reasons.append("KDJ 金叉且处于超卖区 🟢")
+        elif last["KDJ_K"] < last["KDJ_D"] and last["KDJ_K"] > 70:
+            score -= 1; reasons.append("KDJ 死叉且处于超买区 🔴")
+    
+    decision = "观望 ⚪"
+    if score >= 3: decision = "买入/加仓 🟢"
+    elif score <= -2: decision = "减仓/离场 🔴"
+    
+    # 2) 历史百分位（最近窗口）
+    hist_window = min(len(dfi), 365)
+    recent_close = dfi["Close"].iloc[-hist_window:]
+    pct_rank = float((recent_close <= price).mean()) * 100 if hist_window > 1 else 50.0
+    
+    # 3) 支撑位/压力位（最近N根）
+    N = 20
+    recent_high = dfi["High"].iloc[-N:]
+    recent_low = dfi["Low"].iloc[-N:]
+    support_zone = (recent_low.min(), dfi["Close"].iloc[-N:].min())
+    resist_zone = (dfi["Close"].iloc[-N:].max(), recent_high.max())
+    
+    # 4) ATR 止盈止损
+    if use_atr and "ATR" in dfi.columns and not np.isnan(last["ATR"]):
+        atr_val = float(last["ATR"])
+    else:
+        atr_val = float(dfi["Close"].pct_change().rolling(14).std().iloc[-1] * price)
+    tp = price + 2.0*atr_val if "减仓" not in decision else price - 2.0*atr_val
+    sl = price - 1.2*atr_val if "减仓" not in decision else price + 1.2*atr_val
+    
+    hint = "区间中位；按信号执行为主。"
+    if pct_rank <= 25:
+        hint = "低位区间（≤25%）→ 倾向逢低布局，关注止损与量能确认。"
+    elif pct_rank >= 75:
+        hint = "高位区间（≥75%）→ 谨慎追高，关注回撤与量能衰减。"
+    
+    c1,c2,c3,c4 = st.columns(4)
+    c1.metric("最新价", f"{price:,.4f}")
+    c2.metric("建议", decision)
+    c3.metric("评分", str(score))
+    c4.metric("ATR", f"{atr_val:,.4f}")
+    
+    # （已移除依据显示）
+    st.info(
+        f"价格百分位：**{pct_rank:.1f}%**｜"
+        f"支撑区：**{support_zone[0]:,.4f} ~ {support_zone[1]:,.4f}**｜"
+        f"压力区：**{resist_zone[0]:,.4f} ~ {resist_zone[1]:,.4f}**｜"
+        f"建议止损：**{sl:,.4f}** ｜ 建议止盈：**{tp:,.4f}**\n\n"
+        f"提示：{hint}"
+    )
+    
+    # ========================= 胜率统计（简版） =========================
+    def simple_backtest(df):
+        df = df.dropna().copy()
+        cond_ok = all(c in df.columns for c in ["MA20","MA50","MACD","MACD_signal"])
+        if cond_ok:
+            long_cond = (df["MA20"]>df["MA50"]) & (df["MACD"]>df["MACD_signal"])
+            short_cond = (df["MA20"]<df["MA50"]) & (df["MACD"]<df["MACD_signal"])
+            sig = np.where(long_cond, 1, np.where(short_cond, -1, 0))
+        else:
+            sig = np.zeros(len(df))
+        df["sig"] = sig
+        ret = df["Close"].pct_change().fillna(0.0).values
+        pos = pd.Series(sig, index=df.index).replace(0, np.nan).ffill().fillna(0).values
+        strat_ret = pos * ret
+        equity = (1+pd.Series(strat_ret, index=df.index)).cumprod()
+        pnl = []
+        last_side = 0; entry_price = None
+        for side,p in zip(pos, df["Close"].values):
+            if side!=0 and last_side==0:
+                entry_price = p; last_side = side
+            elif side==0 and last_side!=0 and entry_price is not None:
+                pnl.append((p/entry_price-1)*last_side); last_side=0; entry_price=None
+        pnl = pd.Series(pnl) if len(pnl)>0 else pd.Series(dtype=float)
+        win_rate = float((pnl>0).mean()) if len(pnl)>0 else 0.0
+        roll_max = equity.cummax(); mdd = float(((roll_max - equity)/roll_max).max()) if len(equity)>0 else 0.0
+        return equity, pnl, win_rate, mdd
+    
+    st.markdown("---")
+    st.subheader("📈 策略胜率与净值")
+    equity, pnl, win_rate, mdd = simple_backtest(dfi)
+    c1, c2, c3 = st.columns(3)
+    c1.metric("历史胜率", f"{win_rate*100:.2f}%")
+    c2.metric("最大回撤", f"{mdd*100:.2f}%")
+    total_ret = equity.iloc[-1]/equity.iloc[0]-1 if len(equity)>1 else 0.0
+    c3.metric("累计收益", f"{total_ret*100:.2f}%")
+    fig_eq = go.Figure()
+    fig_eq.add_trace(go.Scatter(x=equity.index, y=equity.values, mode="lines", name="策略净值"))
+    fig_eq.update_layout(height=280, xaxis_rangeslider_visible=False)
+    st.plotly_chart(fig_eq, use_container_width=True, config={'scrollZoom': True, 'responsive': True, 'displaylogo': False})
+    if len(pnl)>0:
+        st.plotly_chart(px.histogram(pnl, nbins=20, title="单笔收益分布", config={'scrollZoom': True, 'responsive': True, 'displaylogo': False}), use_container_width=True)
+    else:
+        st.info("暂无可统计的交易样本。")
+    
+    # ========================= 风控面板（结果） =========================
+    st.markdown("---")
+    st.subheader("🛡️ 风控面板（结果）")
+    atr_for_pos = atr_val if atr_val and atr_val>0 else (dfi["Close"].pct_change().rolling(14).std().iloc[-1]*price)
+    stop_distance = atr_for_pos / max(price, 1e-9)
+    risk_amount = float(account_value) * (float(risk_pct)/100.0)
+    position_value = risk_amount / max(stop_distance, 1e-6) / max(int(leverage),1)
+    position_value = min(position_value, float(account_value))
+    position_size = position_value / max(price, 1e-9)
+    rc1, rc2, rc3 = st.columns(3)
+    rc1.metric("建议持仓名义价值", f"{position_value:,.2f}")
+    rc2.metric("建议仓位数量", f"{position_size:,.6f}")
+    rc3.metric("单笔风险金额", f"{risk_amount:,.2f}")
+    st.caption("仓位公式：头寸 = 账户总值 × 单笔风险% ÷ (止损幅度 × 杠杆)")
+    
+    # ========================= 组合风险暴露（按波动率配比） =========================
+    st.subheader("📊 组合风险暴露建议（低波动高权重）")
+    def get_close_series(sym):
+        try:
+            if source == "CoinGecko（免API）":
+                d = load_coingecko_ohlc_robust(sym, interval)
+            elif source == "TokenInsight API 模式（可填API基址）":
+                d = load_tokeninsight_ohlc(api_base, sym, interval)
+            elif source in ["OKX 公共行情（免API）", "OKX API（可填API基址）"]:
+                d = load_okx_public(sym, interval, base_url=api_base if "OKX API" in source else "")
+            else:
+                d = load_yf(sym, interval)
+            return d["Close"].rename(sym) if not d.empty else None
+        except Exception:
+            return None
+    
+    series_list = []
+    for s in combo_symbols:
+        se = get_close_series(s)
+        if se is not None and not se.empty:
+            series_list.append(se)
+    if series_list:
+        closes = pd.concat(series_list, axis=1).dropna()
+        vols = closes.pct_change().rolling(30).std().iloc[-1].replace(0, np.nan)
+        inv_vol = 1.0/vols
+        weights = inv_vol/np.nansum(inv_vol)
+        w_df = pd.DataFrame({"symbol": weights.index, "weight": weights.values})
+        st.plotly_chart(px.pie(w_df, names="symbol", values="weight", title="建议权重", config={'scrollZoom': True, 'responsive': True, 'displaylogo': False}), use_container_width=True)
+    else:
+        st.info("组合标留空或数据不足。")
+    
+    # ========================= 新增模块：多指标策略组合 & 绩效预测 =========================
     st.markdown("---")
     st.subheader("🧪 组合策略评估（多指标合成｜非投资建议）")
     
