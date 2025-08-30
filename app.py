@@ -1113,7 +1113,7 @@ if page_clean == "策略":
     # === 从“全指标信号表格”获取利多/利空指标数量 ===
     try:
         _ind_table_for_counts = build_indicator_signal_table(dfi)
-        _sig_series = _ind_table_for_counts['信号'].astype(str)
+        _sig_series = _ind_table_for_counts['说明'].astype(str)
         bull_count = int(_sig_series.str.contains('利多').sum())
         bear_count = int(_sig_series.str.contains('利空').sum())
     except Exception:
