@@ -20,6 +20,15 @@ def _append_icon(row):
 
 # ====================== 新增：实时策略指标信息表格（始终包含所有指标） ======================
 def build_indicator_signal_table(dfi):
+    # Count the occurrences of "利多" (bullish) and "利空" (bearish)
+    bull_count = dfi['说明'].apply(lambda x: '利多' in str(x)).sum()
+    bear_count = dfi['说明'].apply(lambda x: '利空' in str(x)).sum()
+
+    # Display the counts in the table header or elsewhere as needed
+    st.write(f"利多信号数量: {bull_count}")
+    st.write(f"利空信号数量: {bear_count}")
+
+    
     """
     输入：dfi（包含各类技术指标列的 DataFrame），要求包含最后一行（最新）
     输出：用于展示的 DataFrame，统一包含：RSI、MACD、KDJ、StochRSI、ADX/DMI、CCI、MFI、OBV、ATR、EMA200、VWAP、布林带
