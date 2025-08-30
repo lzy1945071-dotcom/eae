@@ -985,12 +985,8 @@ if page_clean == "策略":
 st.markdown("---")
 st.subheader("🧭 实时策略建议（非投资建议）")
 
-# 1. Move the current price and light blue background card to the top
 # 显示当前价
 st.write(f"当前价: {price}")
-
-# 2. Removing the 做多评分 and 做空评分 features.
-# Removed the code related to 做多评分 and 做空评分
 
 # ---------- 指标快照（安全获取） ----------
 def g(col, default=np.nan):
