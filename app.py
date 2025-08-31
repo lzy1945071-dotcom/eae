@@ -10,7 +10,9 @@ import ta
 import math
 from datetime import datetime
 import time
+
 st.set_page_config(page_title="Legend Quant Terminal Elite v3 FIX10", layout="wide")
+
 # 初始化会话状态
 if 'last_refresh_time' not in st.session_state:
     st.session_state.last_refresh_time = None
@@ -18,6 +20,7 @@ if 'show_checkmark' not in st.session_state:
     st.session_state.show_checkmark = False
 if 'refresh_counter' not in st.session_state:
     st.session_state.refresh_counter = 0
+
 # ========================= 添加自动刷新功能 =========================
 st.sidebar.header("🔄 刷新")
 auto_refresh = st.sidebar.checkbox("启用自动刷新", value=False)
@@ -27,6 +30,7 @@ if auto_refresh:
     # For a real implementation, you might need a community component like streamlit-autorefresh
     # from streamlit_autorefresh import st_autorefresh
     # st_autorefresh(interval=refresh_interval * 1000, key="auto_refresh")
+
 # ========================= Sidebar: ① 数据来源与标的 =========================
 st.sidebar.header("① 数据来源与标的")
 source = st.sidebar.selectbox(
@@ -67,11 +71,12 @@ elif source in ["OKX 公共行情（免API）", "OKX API（可填API基址）"]:
 elif source == "Finnhub API":
     # Finnhub API特定的输入
     symbol = st.sidebar.text_input("个标（Finnhub symbol）", value="AAPL")
-    interval = st.sidebar.selectbox("K线周期", ["1", "5", "15", "30", "60", "D", "W", "M"], index=0, 
+    interval = st.sidebar.selectbox("K线周期", ["1", "5", "15", "30", "60", "D", "W", "M"], index=0,
                                   help="Finnhub支持的周期：1,5,15,30,60分钟,D=日,W=周,M=月")
 else:
     symbol = st.sidebar.selectbox("个标（美股/A股）", ["AAPL","TSLA","MSFT","NVDA","600519.SS","000001.SS"], index=0)
     interval = st.sidebar.selectbox("K线周期", ["1d","1wk","1mo"], index=0)
+
 # ========================= Sidebar: ③ 指标与参数（顶级交易员常用） =========================
 st.sidebar.header("③ 指标与参数（顶级交易员常用）")
 use_ma = st.sidebar.checkbox("MA（简单均线）", True)
@@ -89,6 +94,7 @@ use_rsi = st.sidebar.checkbox("RSI（副图）", True)
 rsi_window = st.sidebar.number_input("RSI 窗口", min_value=5, value=14, step=1)
 use_atr = st.sidebar.checkbox("ATR（用于风险/止盈止损）", True)
 atr_window = st.sidebar.number_input("ATR 窗口", min_value=5, value=14, step=1)
+
 # ===== 新增：更多常用指标 =====
 st.sidebar.markdown("**（新增）更多常用指标**")
 use_vwap = st.sidebar.checkbox("VWAP（成交量加权均价）", True)
@@ -108,11 +114,13 @@ use_obv = st.sidebar.checkbox("OBV 能量潮（副图）", False)
 use_psar = st.sidebar.checkbox("PSAR 抛物线转向", False)
 psar_step = st.sidebar.number_input("PSAR 步长", min_value=0.001, value=0.02, step=0.001, format="%.3f")
 psar_max_step = st.sidebar.number_input("PSAR 最大步长", min_value=0.01, value=0.2, step=0.01, format="%.2f")
+
 # ===== 新增：KDJ指标 =====
 use_kdj = st.sidebar.checkbox("KDJ（副图）", True)
 kdj_window = st.sidebar.number_input("KDJ 窗口", min_value=5, value=9, step=1)
 kdj_smooth_k = st.sidebar.number_input("K值平滑", min_value=1, value=3, step=1)
 kdj_smooth_d = st.sidebar.number_input("D值平滑", min_value=1, value=3, step=1)
+
 # ========================= Sidebar: ④ 参数推荐（说明） =========================
 st.sidebar.header("④ 参数推荐（说明）")
 st.sidebar.markdown('''
@@ -140,6 +148,7 @@ st.sidebar.markdown('''
 - BOLL: **20 ± 2σ**
 - VWAP: 主力资金参考
 ''')
+
 # ========================= Sidebar: ⑤ 风控参数 =========================
 st.sidebar.header("⑤ 风控参数")
 account_value = st.sidebar.number_input("账户总资金", min_value=1.0, value=1000.0, step=10.0)
@@ -147,6 +156,7 @@ risk_pct = st.sidebar.slider("单笔风险（%）", 0.1, 2.0, 0.5, 0.1)
 leverage = st.sidebar.slider("杠杆倍数", 1, 10, 1, 1)
 daily_loss_limit = st.sidebar.number_input("每日亏损阈值（%）", min_value=0.5, value=2.0, step=0.5)
 weekly_loss_limit = st.sidebar.number_input("每周亏损阈值（%）", min_value=1.0, value=5.0, step=0.5)
+
 # ========================= 添加手动刷新按钮 =========================
 col1, col2, col3 = st.columns([6, 1, 2])
 with col2:
@@ -158,7 +168,8 @@ with col2:
         st.session_state.show_checkmark = True
         st.session_state.force_refresh = True
         # 使用兼容性更好的方法刷新页面
-        st.query_params['refresh'] = refresh=st.session_state.refresh_counter
+        st.query_params['refresh'] = st.session_state.refresh_counter
+
 # 显示刷新确认和时间
 with col3:
     if st.session_state.show_checkmark:
@@ -167,6 +178,7 @@ with col3:
             st.caption(f"最后刷新: {st.session_state.last_refresh_time}")
     elif st.session_state.last_refresh_time:
         st.caption(f"最后刷新: {st.session_state.last_refresh_time}")
+
 # ========================= Data Loaders =========================
 def _cg_days_from_interval(sel: str) -> str:
     if sel.startswith("1d"): return "180"
@@ -261,7 +273,7 @@ def load_finnhub(symbol: str, api_key: str, interval_sel: str):
         r = requests.get(url, params=params, timeout=20)
         r.raise_for_status()
         data = r.json()
-        
+
         if data.get("s") == "ok":  # Finnhub成功响应格式
             # 转换为DataFrame
             df = pd.DataFrame({
@@ -387,22 +399,22 @@ def detect_signals(df):
     # MA交叉信号
     if "MA20" in df.columns and "MA50" in df.columns:
         signals["MA_Cross"] = np.where(
-            (df["MA20"] > df["MA50"]) & (df["MA20"].shift(1) <= df["MA50"].shift(1)), 
-            "Buy", 
+            (df["MA20"] > df["MA50"]) & (df["MA20"].shift(1) <= df["MA50"].shift(1)),
+            "Buy",
             np.where(
-                (df["MA20"] < df["MA50"]) & (df["MA20"].shift(1) >= df["MA50"].shift(1)), 
-                "Sell", 
+                (df["MA20"] < df["MA50"]) & (df["MA20"].shift(1) >= df["MA50"].shift(1)),
+                "Sell",
                 None
             )
         )
     # MACD信号
     if all(c in df.columns for c in ["MACD","MACD_signal"]):
         signals["MACD_Cross"] = np.where(
-            (df["MACD"] > df["MACD_signal"]) & (df["MACD"].shift(1) <= df["MACD_signal"].shift(1)), 
-            "Buy", 
+            (df["MACD"] > df["MACD_signal"]) & (df["MACD"].shift(1) <= df["MACD_signal"].shift(1)),
+            "Buy",
             np.where(
-                (df["MACD"] < df["MACD_signal"]) & (df["MACD"].shift(1) >= df["MACD_signal"].shift(1)), 
-                "Sell", 
+                (df["MACD"] < df["MACD_signal"]) & (df["MACD"].shift(1) >= df["MACD_signal"].shift(1)),
+                "Sell",
                 None
             )
         )
@@ -413,11 +425,11 @@ def detect_signals(df):
     # KDJ信号
     if all(c in df.columns for c in ["KDJ_K","KDJ_D"]):
         signals["KDJ_Cross"] = np.where(
-            (df["KDJ_K"] > df["KDJ_D"]) & (df["KDJ_K"].shift(1) <= df["KDJ_D"].shift(1)), 
-            "Buy", 
+            (df["KDJ_K"] > df["KDJ_D"]) & (df["KDJ_K"].shift(1) <= df["KDJ_D"].shift(1)),
+            "Buy",
             np.where(
-                (df["KDJ_K"] < df["KDJ_D"]) & (df["KDJ_K"].shift(1) >= df["KDJ_D"].shift(1)), 
-                "Sell", 
+                (df["KDJ_K"] < df["KDJ_D"]) & (df["KDJ_K"].shift(1) >= df["KDJ_D"].shift(1)),
+                "Sell",
                 None
             )
         )
@@ -449,272 +461,292 @@ support, resistance = calculate_support_resistance(dfi)
 # ========================= TradingView 风格图表 =========================
 st.subheader(f"🕯️ K线（{symbol} / {source} / {interval}）")
 fig = go.Figure()
+
 # --- Build hovertext for candlestick (keep original precision) ---
-    try:
-        # choose volume column
-        volume_col = None
-        for _cand in ["Volume","volume","vol","Vol","amt"]:
-            if _cand in dfi.columns:
-                volume_col = _cand
-                break
-        if volume_col is None:
-            dfi["_VolumeForHover"] = 0.0
-            volume_col = "_VolumeForHover"
-        # Signal column optional
-        _has_signal = "Signal" in dfi.columns
-        _time_str = dfi.index.astype(str)
-        dfi["hovertext"] = (
-            "Time: " + _time_str +
-            "<br>Open: " + dfi["Open"].astype(str) +
-            "<br>High: " + dfi["High"].astype(str) +
-            "<br>Low: " + dfi["Low"].astype(str) +
-            "<br>Close: " + dfi["Close"].astype(str) +
-            "<br>Volume: " + dfi[volume_col].astype(str)
-        )
-        if _has_signal:
-            dfi["hovertext"] = dfi["hovertext"] + "<br>Signal: " + dfi["Signal"].astype(str)
-    except Exception as _e:
-        # fallback: minimal hovertext
-        dfi["hovertext"] = "Time: " + dfi.index.astype(str)
-    # --- Determine volume column for hover ---
+try:
+    # choose volume column
     volume_col = None
-    for cand in ["Volume", "volume", "vol", "Vol", "amt"]:
-        if cand in dfi.columns:
-            volume_col = cand
+    for _cand in ["Volume","volume","vol","Vol","amt"]:
+        if _cand in dfi.columns:
+            volume_col = _cand
             break
     if volume_col is None:
         dfi["_VolumeForHover"] = 0.0
         volume_col = "_VolumeForHover"
-    fig.add_trace(
-        go.Candlestick(x=dfi.index,
-            open=dfi["Open"],
-            high=dfi["High"],
-            low=dfi["Low"],
-            close=dfi["Close"],
-            name="K线",
-            )
+    # Signal column optional
+    _has_signal = "Signal" in dfi.columns
+    _time_str = dfi.index.astype(str)
+    dfi["hovertext"] = (
+        "Time: " + _time_str +
+        "<br>Open: " + dfi["Open"].astype(str) +
+        "<br>High: " + dfi["High"].astype(str) +
+        "<br>Low: " + dfi["Low"].astype(str) +
+        "<br>Close: " + dfi["Close"].astype(str) +
+        "<br>Volume: " + dfi[volume_col].astype(str)
     )
-    # 添加均线 - 默认隐藏
-    if use_ma:
-        ma_colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"]
-        for i, p in enumerate(parse_int_list(ma_periods_text)):
-            col = f"MA{p}"
-            if col in dfi.columns: 
-                fig.add_trace(go.Scatter(
-                    x=dfi.index, 
-                    y=dfi[col], 
-                    mode="lines", 
-                    name=col, 
-                    yaxis="y",
-                    line=dict(color=ma_colors[i % len(ma_colors)]),
-                    visible="legendonly"  # 默认隐藏
-                ))
-    if use_ema:
-        ema_colors = ["#3366cc", "#dc3912", "#ff9900", "#109618", "#990099", "#0099c6", "#dd4477", "#66aa00", "#b82e2e", "#316395"]
-        for i, p in enumerate(parse_int_list(ema_periods_text)):
-            col = f"EMA{p}"
-            if col in dfi.columns: 
-                fig.add_trace(go.Scatter(
-                    x=dfi.index, 
-                    y=dfi[col], 
-                    mode="lines", 
-                    name=col, 
-                    yaxis="y",
-                    line=dict(color=ema_colors[i % len(ema_colors)]),
-                    visible="legendonly"  # 默认隐藏
-                ))
-    if use_boll:
-        boll_colors = ["#3d9970", "#ff4136", "#85144b"]
-        for i, (col, nm) in enumerate([("BOLL_U","BOLL 上轨"),("BOLL_M","BOLL 中轨"),("BOLL_L","BOLL 下轨")]):
-            if col in dfi.columns: 
-                fig.add_trace(go.Scatter(
-                    x=dfi.index, 
-                    y=dfi[col], 
-                    mode="lines", 
-                    name=nm, 
-                    yaxis="y",
-                    line=dict(color=boll_colors[i % len(boll_colors)]),
-                    visible="legendonly"  # 默认隐藏
-                ))
-    # 添加支撑阻力线 - 默认隐藏
-    fig.add_trace(go.Scatter(
-        x=dfi.index, 
-        y=support, 
-        mode="lines", 
-        name="支撑", 
-        line=dict(color="#00cc96", dash="dash"), 
-        yaxis="y",
-        visible="legendonly"  # 默认隐藏
-    ))
-    fig.add_trace(go.Scatter(
-        x=dfi.index, 
-        y=resistance, 
-        mode="lines", 
-        name="阻力", 
-        line=dict(color="#ef553b", dash="dash"), 
-        yaxis="y",
-        visible="legendonly"  # 默认隐藏
-    ))
-    # 添加买卖信号 - 默认隐藏
-    buy_signals = signals[signals.isin(["Buy"]).any(axis=1)]
-    sell_signals = signals[signals.isin(["Sell"]).any(axis=1)]
-    if not buy_signals.empty:
-        buy_points = dfi.loc[buy_signals.index]
-        fig.add_trace(go.Scatter(
-            x=buy_points.index, 
-            y=buy_points["Low"] * 0.99, 
-            mode="markers", 
-            name="买入信号",
-            marker=dict(symbol="triangle-up", size=10, color="#00cc96"),
-            visible="legendonly"  # 默认隐藏
-        ))
-    if not sell_signals.empty:
-        sell_points = dfi.loc[sell_signals.index]
-        fig.add_trace(go.Scatter(
-            x=sell_points.index, 
-            y=sell_points["High"] * 1.01, 
-            mode="markers", 
-            name="卖出信号",
-            marker=dict(symbol="triangle-down", size=10, color="#ef553b"),
-            visible="legendonly"  # 默认隐藏
-        ))
-    # 添加成交量 - 默认显示 (修改颜色为更深的实体)
-    vol_colors = np.where(dfi["Close"] >= dfi["Open"], "#26A69A", "#EF5350")
-    if "Volume" in dfi.columns and not dfi["Volume"].isna().all():
-        fig.add_trace(go.Bar(
-            x=dfi.index, 
-            y=dfi["Volume"], 
-            name="成交量", 
-            yaxis="y2", 
-            marker_color=vol_colors
-        ))
-    # 添加MACD副图 - 默认显示
-    if use_macd and all(c in dfi.columns for c in ["MACD","MACD_signal","MACD_hist"]):
-        fig.add_trace(go.Scatter(
-            x=dfi.index, 
-            y=dfi["MACD"], 
-            name="MACD", 
-            yaxis="y3", 
-            mode="lines",
-            line=dict(color="#3366cc")
-        ))
-        fig.add_trace(go.Scatter(
-            x=dfi.index, 
-            y=dfi["MACD_signal"], 
-            name="Signal", 
-            yaxis="y3", 
-            mode="lines",
-            line=dict(color="#ff9900")
-        ))
-        fig.add_trace(go.Bar(
-            x=dfi.index, 
-            y=dfi["MACD_hist"], 
-            name="MACD 柱", 
-            yaxis="y3", 
-            opacity=0.4,
-            marker_color=np.where(dfi["MACD_hist"] >= 0, "#00cc96", "#ef553b")
-        ))
-    # 添加RSI副图 - 默认隐藏
-    if use_rsi and "RSI" in dfi.columns:
-        fig.add_trace(go.Scatter(
-            x=dfi.index, 
-            y=dfi["RSI"], 
-            name="RSI", 
-            yaxis="y4", 
-            mode="lines",
-            line=dict(color="#17becf")
-        ))
-        # 添加RSI超买超卖线
-        fig.add_hline(y=70, line_dash="dash", line_color="red", yref="y4", opacity=0.5)
-        fig.add_hline(y=30, line_dash="dash", line_color="green", yref="y4", opacity=0.5)
-    # 添加KDJ副图 - 默认隐藏
-    if use_kdj and all(c in dfi.columns for c in ["KDJ_K","KDJ_D","KDJ_J"]):
-        fig.add_trace(go.Scatter(
-            x=dfi.index, 
-            y=dfi["KDJ_K"], 
-            name="KDJ_K", 
-            yaxis="y5", 
-            mode="lines",
-            line=dict(color="#ff7f0e")# 默认隐藏
-        ))
-        fig.add_trace(go.Scatter(
-            x=dfi.index, 
-            y=dfi["KDJ_D"], 
-            name="KDJ_D", 
-            yaxis="y5", 
-            mode="lines",
-            line=dict(color="#1f77b4")# 默认隐藏
-        ))
-        fig.add_trace(go.Scatter(
-            x=dfi.index, 
-            y=dfi["KDJ_J"], 
-            name="KDJ_J", 
-            yaxis="y5", 
-            mode="lines",
-            line=dict(color="#2ca02c")# 默认隐藏
-        ))
-        # 添加KDJ超买超卖线
-        fig.add_hline(y=80, line_dash="dash", line_color="red", yref="y5", opacity=0.5)
-        fig.add_hline(y=20, line_dash="dash", line_color="green", yref="y5", opacity=0.5)
-    # 更新图表布局
-    # ===== 斐波那契回撤（默认隐藏，图例中点击开启；组点击=全显/全隐） =====
-    # 侧边栏设置：自动/手动 以及lookback
-    with st.sidebar.expander("⚙️ 斐波那契设置", expanded=False):
-        use_auto_fib = st.checkbox("自动高低点（最近N根K线）", value=True, key="auto_fib")
-        lookback = st.number_input("N（最近N根K线）", min_value=20, max_value=2000, value=100, step=10, key="fib_lookback")
-        if not use_auto_fib:
-            fib_high = st.number_input("自定义高点", min_value=0.0, value=float(dfi["High"].max()), key="fib_high")
-            fib_low = st.number_input("自定义低点", min_value=0.0, value=float(dfi["Low"].min()), key="fib_low")
-        else:
-            sub_df = dfi.tail(int(lookback))
-            fib_high = float(sub_df["High"].max())
-            fib_low = float(sub_df["Low"].min())
-    # 始终添加（legendonly）以便在图例点击开启
-    levels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1]
-    first = True
-    for lvl in levels:
-        price = fib_high - (fib_high - fib_low) * lvl
-        fig.add_trace(
-            go.Scatter(
-                x=[dfi.index[0], dfi.index[-1]],
-                y=[price, price],
+    if _has_signal:
+        dfi["hovertext"] = dfi["hovertext"] + "<br>Signal: " + dfi["Signal"].astype(str)
+except Exception as _e:
+    # fallback: minimal hovertext
+    dfi["hovertext"] = "Time: " + dfi.index.astype(str)
+
+# --- Determine volume column for hover ---
+volume_col = None
+for cand in ["Volume", "volume", "vol", "Vol", "amt"]:
+    if cand in dfi.columns:
+        volume_col = cand
+        break
+if volume_col is None:
+    dfi["_VolumeForHover"] = 0.0
+    volume_col = "_VolumeForHover"
+
+fig.add_trace(
+    go.Candlestick(x=dfi.index,
+        open=dfi["Open"],
+        high=dfi["High"],
+        low=dfi["Low"],
+        close=dfi["Close"],
+        name="K线",
+        )
+)
+
+# 添加均线 - 默认隐藏
+if use_ma:
+    ma_colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"]
+    for i, p in enumerate(parse_int_list(ma_periods_text)):
+        col = f"MA{p}"
+        if col in dfi.columns:
+            fig.add_trace(go.Scatter(
+                x=dfi.index,
+                y=dfi[col],
                 mode="lines",
-                name=f"Fibonacci {lvl*100:.1f}%",
-                line=dict(dash="dot"),
-                visible="legendonly",
-                legendgroup="Fibonacci",
-                showlegend=first,
-                legendgrouptitle_text="Fibonacci"
-            ),
-            # 主图轴
-        )
-        first = False
-    # 组点击行为：点击一个成员即可全显/全隐
-    fig.update_layout(legend=dict(groupclick="togglegroup"))
-    fig.update_layout(
-        hovermode='x unified',
-        xaxis=dict(showspikes=True, spikemode='across', spikesnap='cursor', showline=True),
-        yaxis=dict(showspikes=True, spikemode='across', spikesnap='cursor', showline=True),
-        xaxis_rangeslider_visible=False,
-        height=1000,
-        dragmode="pan",
-        yaxis2=dict(domain=[0.45, 0.57], title="成交量", showgrid=False),
-        yaxis3=dict(domain=[0.25, 0.44], title="MACD", showgrid=False),
-        yaxis4=dict(domain=[0.15, 0.24], title="RSI", showgrid=False, range=[0,100]),
-        yaxis5=dict(domain=[0.0, 0.14], title="KDJ", showgrid=False, range=[0,100]),
-        modebar_add=["drawline","drawopenpath","drawclosedpath","drawcircle","drawrect","eraseshape"],
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.02,
-            xanchor="right",
-            x=1
-        )
-    ,
-        uirevision='constant'
+                name=col,
+                yaxis="y",
+                line=dict(color=ma_colors[i % len(ma_colors)]),
+                visible="legendonly"  # 默认隐藏
+            ))
+
+if use_ema:
+    ema_colors = ["#3366cc", "#dc3912", "#ff9900", "#109618", "#990099", "#0099c6", "#dd4477", "#66aa00", "#b82e2e", "#316395"]
+    for i, p in enumerate(parse_int_list(ema_periods_text)):
+        col = f"EMA{p}"
+        if col in dfi.columns:
+            fig.add_trace(go.Scatter(
+                x=dfi.index,
+                y=dfi[col],
+                mode="lines",
+                name=col,
+                yaxis="y",
+                line=dict(color=ema_colors[i % len(ema_colors)]),
+                visible="legendonly"  # 默认隐藏
+            ))
+
+if use_boll:
+    boll_colors = ["#3d9970", "#ff4136", "#85144b"]
+    for i, (col, nm) in enumerate([("BOLL_U","BOLL 上轨"),("BOLL_M","BOLL 中轨"),("BOLL_L","BOLL 下轨")]):
+        if col in dfi.columns:
+            fig.add_trace(go.Scatter(
+                x=dfi.index,
+                y=dfi[col],
+                mode="lines",
+                name=nm,
+                yaxis="y",
+                line=dict(color=boll_colors[i % len(boll_colors)]),
+                visible="legendonly"  # 默认隐藏
+            ))
+
+# 添加支撑阻力线 - 默认隐藏
+fig.add_trace(go.Scatter(
+    x=dfi.index,
+    y=support,
+    mode="lines",
+    name="支撑",
+    line=dict(color="#00cc96", dash="dash"),
+    yaxis="y",
+    visible="legendonly"  # 默认隐藏
+))
+
+fig.add_trace(go.Scatter(
+    x=dfi.index,
+    y=resistance,
+    mode="lines",
+    name="阻力",
+    line=dict(color="#ef553b", dash="dash"),
+    yaxis="y",
+    visible="legendonly"  # 默认隐藏
+))
+
+# 添加买卖信号 - 默认隐藏
+buy_signals = signals[signals.isin(["Buy"]).any(axis=1)]
+sell_signals = signals[signals.isin(["Sell"]).any(axis=1)]
+if not buy_signals.empty:
+    buy_points = dfi.loc[buy_signals.index]
+    fig.add_trace(go.Scatter(
+        x=buy_points.index,
+        y=buy_points["Low"] * 0.99,
+        mode="markers",
+        name="买入信号",
+        marker=dict(symbol="triangle-up", size=10, color="#00cc96"),
+        visible="legendonly"  # 默认隐藏
+    ))
+if not sell_signals.empty:
+    sell_points = dfi.loc[sell_signals.index]
+    fig.add_trace(go.Scatter(
+        x=sell_points.index,
+        y=sell_points["High"] * 1.01,
+        mode="markers",
+        name="卖出信号",
+        marker=dict(symbol="triangle-down", size=10, color="#ef553b"),
+        visible="legendonly"  # 默认隐藏
+    ))
+
+# 添加成交量 - 默认显示 (修改颜色为更深的实体)
+vol_colors = np.where(dfi["Close"] >= dfi["Open"], "#26A69A", "#EF5350")
+if "Volume" in dfi.columns and not dfi["Volume"].isna().all():
+    fig.add_trace(go.Bar(
+        x=dfi.index,
+        y=dfi["Volume"],
+        name="成交量",
+        yaxis="y2",
+        marker_color=vol_colors
+    ))
+
+# 添加MACD副图 - 默认显示
+if use_macd and all(c in dfi.columns for c in ["MACD","MACD_signal","MACD_hist"]):
+    fig.add_trace(go.Scatter(
+        x=dfi.index,
+        y=dfi["MACD"],
+        name="MACD",
+        yaxis="y3",
+        mode="lines",
+        line=dict(color="#3366cc")
+    ))
+    fig.add_trace(go.Scatter(
+        x=dfi.index,
+        y=dfi["MACD_signal"],
+        name="Signal",
+        yaxis="y3",
+        mode="lines",
+        line=dict(color="#ff9900")
+    ))
+    fig.add_trace(go.Bar(
+        x=dfi.index,
+        y=dfi["MACD_hist"],
+        name="MACD 柱",
+        yaxis="y3",
+        opacity=0.4,
+        marker_color=np.where(dfi["MACD_hist"] >= 0, "#00cc96", "#ef553b")
+    ))
+
+# 添加RSI副图 - 默认隐藏
+if use_rsi and "RSI" in dfi.columns:
+    fig.add_trace(go.Scatter(
+        x=dfi.index,
+        y=dfi["RSI"],
+        name="RSI",
+        yaxis="y4",
+        mode="lines",
+        line=dict(color="#17becf")
+    ))
+    # 添加RSI超买超卖线
+    fig.add_hline(y=70, line_dash="dash", line_color="red", yref="y4", opacity=0.5)
+    fig.add_hline(y=30, line_dash="dash", line_color="green", yref="y4", opacity=0.5)
+
+# 添加KDJ副图 - 默认隐藏
+if use_kdj and all(c in dfi.columns for c in ["KDJ_K","KDJ_D","KDJ_J"]):
+    fig.add_trace(go.Scatter(
+        x=dfi.index,
+        y=dfi["KDJ_K"],
+        name="KDJ_K",
+        yaxis="y5",
+        mode="lines",
+        line=dict(color="#ff7f0e"),
+        visible="legendonly" # 默认隐藏
+    ))
+    fig.add_trace(go.Scatter(
+        x=dfi.index,
+        y=dfi["KDJ_D"],
+        name="KDJ_D",
+        yaxis="y5",
+        mode="lines",
+        line=dict(color="#1f77b4"),
+        visible="legendonly" # 默认隐藏
+    ))
+    fig.add_trace(go.Scatter(
+        x=dfi.index,
+        y=dfi["KDJ_J"],
+        name="KDJ_J",
+        yaxis="y5",
+        mode="lines",
+        line=dict(color="#2ca02c"),
+        visible="legendonly" # 默认隐藏
+    ))
+    # 添加KDJ超买超卖线
+    fig.add_hline(y=80, line_dash="dash", line_color="red", yref="y5", opacity=0.5)
+    fig.add_hline(y=20, line_dash="dash", line_color="green", yref="y5", opacity=0.5)
+
+# 更新图表布局
+# ===== 斐波那契回撤（默认隐藏，图例中点击开启；组点击=全显/全隐） =====
+# 侧边栏设置：自动/手动 以及lookback
+with st.sidebar.expander("⚙️ 斐波那契设置", expanded=False):
+    use_auto_fib = st.checkbox("自动高低点（最近N根K线）", value=True, key="auto_fib")
+    lookback = st.number_input("N（最近N根K线）", min_value=20, max_value=2000, value=100, step=10, key="fib_lookback")
+    if not use_auto_fib:
+        fib_high = st.number_input("自定义高点", min_value=0.0, value=float(dfi["High"].max()), key="fib_high")
+        fib_low = st.number_input("自定义低点", min_value=0.0, value=float(dfi["Low"].min()), key="fib_low")
+    else:
+        sub_df = dfi.tail(int(lookback))
+        fib_high = float(sub_df["High"].max())
+        fib_low = float(sub_df["Low"].min())
+
+# 始终添加（legendonly）以便在图例点击开启
+levels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1]
+first = True
+for lvl in levels:
+    price = fib_high - (fib_high - fib_low) * lvl
+    fig.add_trace(
+        go.Scatter(
+            x=[dfi.index[0], dfi.index[-1]],
+            y=[price, price],
+            mode="lines",
+            name=f"Fibonacci {lvl*100:.1f}%",
+            line=dict(dash="dot"),
+            visible="legendonly",
+            legendgroup="Fibonacci",
+            showlegend=first,
+            legendgrouptitle_text="Fibonacci"
+        ),
+        # 主图轴
     )
-    st.plotly_chart(fig, use_container_width=True, config={
-        "scrollZoom": True,
-        "displayModeBar": True,
-        "displaylogo": False
-    })
+    first = False
+
+# 组点击行为：点击一个成员即可全显/全隐
+fig.update_layout(legend=dict(groupclick="togglegroup"))
+
+fig.update_layout(
+    hovermode='x unified',
+    xaxis=dict(showspikes=True, spikemode='across', spikesnap='cursor', showline=True),
+    yaxis=dict(showspikes=True, spikemode='across', spikesnap='cursor', showline=True),
+    xaxis_rangeslider_visible=False,
+    height=1000,
+    dragmode="pan",
+    yaxis2=dict(domain=[0.45, 0.57], title="成交量", showgrid=False),
+    yaxis3=dict(domain=[0.25, 0.44], title="MACD", showgrid=False),
+    yaxis4=dict(domain=[0.15, 0.24], title="RSI", showgrid=False, range=[0,100]),
+    yaxis5=dict(domain=[0.0, 0.14], title="KDJ", showgrid=False, range=[0,100]),
+    modebar_add=["drawline","drawopenpath","drawclosedpath","drawcircle","drawrect","eraseshape"],
+    legend=dict(
+        orientation="h",
+        yanchor="bottom",
+        y=1.02,
+        xanchor="right",
+        x=1
+    ),
+    uirevision='constant'
+)
+
+st.plotly_chart(fig, use_container_width=True, config={
+    "scrollZoom": True,
+    "displayModeBar": True,
+    "displaylogo": False
+})
