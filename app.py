@@ -8,7 +8,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 import ta
 import math
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 
 st.set_page_config(page_title="Legend Quant Terminal Elite v3 FIX10", layout="wide")
@@ -58,26 +58,46 @@ if source in ["OKX API（可填API基址）", "TokenInsight API 模式（可填A
             api_secret = st.text_input("OKX-API-SECRET", value="", type="password")
             api_passphrase = st.text_input("OKX-API-PASSPHRASE", value="", type="password")
 elif source == "Finnhub API":
-    # 为Finnhub API添加API Key输入
-    api_key = st.sidebar.text_input("Finnhub API Key", value="", type="password")
+    # 为Finnhub API添加API Key输入，并提供默认值
+    DEFAULT_FINNHUB_API_KEY = "d2q60mpr01qn21mhud5gd2q60mpr01qn21mhud60" # 您的API Key
+    api_key = st.sidebar.text_input("Finnhub API Key", value=DEFAULT_FINNHUB_API_KEY, type="password")
 
 # 标的与周期
 if source in ["CoinGecko（免API）", "TokenInsight API 模式（可填API基址）"]:
-    symbol = st.sidebar.selectbox("个标（CoinGecko coin_id）", ["bitcoin","ethereum","solana","dogecoin","cardano","ripple","polkadot"], index=1)
+    symbol = st.sidebar.selectbox("个标（CoinGecko coin_id）", ["bitcoin","ethereum","solana","dogecoin","cardano","ripple","polkadot"], index=0) # 默认BTC
     interval = st.sidebar.selectbox("K线周期（映射）", ["1d","1w","1M","max"], index=0, help="CoinGecko/TokenInsight 免费接口多为日级/周级聚合，不提供细分分钟线。")
 elif source in ["OKX 公共行情（免API）", "OKX API（可填API基址）"]:
-    symbol = st.sidebar.selectbox("个标（OKX InstId）", ["BTC-USDT","ETH-USDT","SOL-USDT","XRP-USDT","DOGE-USDT"], index=1)
-    interval = st.sidebar.selectbox("K线周期", ["1m","3m","5m","15m","30m","1H","2H","4H","6H","12H","1D","1W","1M"], index=3)
+    symbol = st.sidebar.selectbox("个标（OKX InstId）", ["BTC-USDT","ETH-USDT","SOL-USDT","XRP-USDT","DOGE-USDT"], index=0) # 默认BTC-USDT
+    interval = st.sidebar.selectbox("K线周期", ["1m","3m","5m","15m","30m","1H","2H","4H","6H","12H","1D","1W","1M"], index=3) # 默认15m
 elif source == "Finnhub API":
-    # 为Finnhub API添加API Key输入
-    # 注意：出于安全考虑，在生产环境中不建议在代码中硬编码敏感信息如API Key。
-    # 更安全的做法是使用环境变量或Streamlit Secrets管理。
-    # 此处为演示目的直接赋值，您可以根据需要修改。
-    DEFAULT_FINNHUB_API_KEY = "d2q60mpr01qn21mhud5gd2q60mpr01qn21mhud60" # 您的API Key
-    api_key = st.sidebar.text_input("Finnhub API Key", value=DEFAULT_FINNHUB_API_KEY, type="password")
-    symbol = st.sidebar.text_input("个标（Finnhub symbol）", value="AAPL")
-    interval = st.sidebar.selectbox("K线周期", ["1", "5", "15", "30", "60", "D", "W", "M"], index=0,
+    # Finnhub API特定的输入 - 提供合理的默认值
+    # 注意：Finnhub 的加密货币符号可能需要特定格式，例如 BINANCE:BTCUSDT
+    finnhub_symbol_options = {
+        "BTC/USDT": "BINANCE:BTCUSDT",
+        "ETH/USDT": "BINANCE:ETHUSDT",
+        "SOL/USDT": "BINANCE:SOLUSDT",
+        "XRP/USDT": "BINANCE:XRPUSDT",
+        "DOGE/USDT": "BINANCE:DOGEUSDT"
+    }
+    finnhub_default_symbol = "BINANCE:BTCUSDT" # 默认为BTC/USDT
+    finnhub_selected_label = st.sidebar.selectbox("个标（Finnhub）", list(finnub_symbol_options.keys()), index=0) # 默认BTC/USDT
+    symbol = finnhub_symbol_options[finnhub_selected_label]
+    
+    # Finnhub 支持的周期映射
+    finnhub_interval_map = {
+        "1分钟": "1",
+        "5分钟": "5",
+        "15分钟": "15",
+        "30分钟": "30",
+        "60分钟": "60",
+        "日线": "D",
+        "周线": "W",
+        "月线": "M"
+    }
+    finnhub_interval_options = list(finnhub_interval_map.keys())
+    finnhub_selected_interval_label = st.sidebar.selectbox("K线周期", finnhub_interval_options, index=2, # 默认15分钟
                                   help="Finnhub支持的周期：1,5,15,30,60分钟,D=日,W=周,M=月")
+    interval = finnhub_interval_map[finnhub_selected_interval_label]
 else:
     symbol = st.sidebar.selectbox("个标（美股/A股）", ["AAPL","TSLA","MSFT","NVDA","600519.SS","000001.SS"], index=0)
     interval = st.sidebar.selectbox("K线周期", ["1d","1wk","1mo"], index=0)
@@ -234,7 +254,7 @@ def load_tokeninsight_ohlc(api_base_url: str, coin_id: str, interval_sel: str):
         r = requests.get(url, params={"symbol": coin_id, "period": "1d"}, timeout=15)
         r.raise_for_status()
         data = r.json()
-        if isinstance(data, list) and data:
+        if isinstance(data, list) and len(data) > 0:
             rows = [(pd.to_datetime(x[0], unit="ms"), float(x[1]), float(x[2]), float(x[3]), float(x[4])) for x in data]
             return pd.DataFrame(rows, columns=["Date","Open","High","Low","Close"]).set_index("Date")
     except Exception:
@@ -266,20 +286,33 @@ def load_yf(symbol: str, interval_sel: str):
 
 @st.cache_data(ttl=900, hash_funcs={"_thread.RLock": lambda _: None})
 def load_finnhub(symbol: str, api_key: str, interval_sel: str):
+    """
+    从Finnhub加载K线数据。
+    注意：Finnhub的加密货币符号通常需要交易所前缀，例如 'BINANCE:BTCUSDT'。
+    """
     try:
-        url = f"https://finnhub.io/api/v1/stock/candle"
+        # Finnhub API端点
+        url = "https://finnhub.io/api/v1/crypto/candle"
+        
+        # 计算时间范围：获取最近约30天的数据（Finnhub免费API可能有限制）
+        to_time = int(time.time())
+        from_time = to_time - 30 * 24 * 60 * 60 # 30天前
+
         params = {
-            "symbol": symbol,
-            "resolution": interval_sel,
-            "from": int(time.time()) - 365*24*60*60,  # 获取一年数据
-            "to": int(time.time()),
+            "symbol": symbol,       # 例如 'BINANCE:BTCUSDT'
+            "resolution": interval_sel, # 例如 '15'
+            "from": from_time,
+            "to": to_time,
             "token": api_key
         }
+        
+        # 发送请求
         r = requests.get(url, params=params, timeout=20)
         r.raise_for_status()
         data = r.json()
 
-        if data.get("s") == "ok":  # Finnhub成功响应格式
+        # 检查响应是否成功
+        if data.get("s") == "ok" and "t" in data and "o" in data and "h" in data and "l" in data and "c" in data:
             # 转换为DataFrame
             df = pd.DataFrame({
                 "Date": pd.to_datetime(data["t"], unit="s"),
@@ -287,12 +320,24 @@ def load_finnhub(symbol: str, api_key: str, interval_sel: str):
                 "High": data["h"],
                 "Low": data["l"],
                 "Close": data["c"],
-                "Volume": data["v"]
+                "Volume": data.get("v", [np.nan] * len(data["t"])) # Volume可能不存在
             })
-            return df.set_index("Date")
+            df = df.set_index("Date")
+            # 确保列的顺序和类型正确
+            df = df[["Open", "High", "Low", "Close", "Volume"]].sort_index()
+            # 移除任何可能存在的NaN行（特别是Volume）
+            df = df.dropna(how='any')
+            return df
+        else:
+            # 如果响应不成功，打印错误信息（用于调试）
+            print(f"Finnhub API returned status: {data.get('s', 'Unknown')}")
+            print(f"Available keys in response: {list(data.keys()) if isinstance(data, dict) else 'Not a dict'}")
+            return pd.DataFrame()
+    except requests.exceptions.RequestException as e:
+        st.error(f"Finnhub API网络请求错误: {str(e)}")
         return pd.DataFrame()
     except Exception as e:
-        st.error(f"Finnhub API error: {str(e)}")
+        st.error(f"Finnhub API处理错误: {str(e)}")
         return pd.DataFrame()
 
 def load_router(source, symbol, interval_sel, api_base="", api_key=""):
@@ -313,7 +358,7 @@ def load_router(source, symbol, interval_sel, api_base="", api_key=""):
 # 加载数据
 df = load_router(source, symbol, interval, api_base, api_key)
 if df.empty or not set(["Open","High","Low","Close"]).issubset(df.columns):
-    st.error("数据为空或字段缺失：请更换数据源/周期，或稍后重试（免费源可能限流）。")
+    st.error(f"数据为空或字段缺失 ({source}, {symbol}, {interval})：请更换数据源/周期，或稍后重试（免费源可能限流）。")
     st.stop()
 
 # ========================= Indicators =========================
@@ -512,6 +557,8 @@ fig.add_trace(
         low=dfi["Low"],
         close=dfi["Close"],
         name="K线",
+        hovertext=dfi["hovertext"], # 添加悬停文本
+        hoverinfo="text" # 使用自定义的悬停文本
         )
 )
 
@@ -613,7 +660,8 @@ if "Volume" in dfi.columns and not dfi["Volume"].isna().all():
         y=dfi["Volume"],
         name="成交量",
         yaxis="y2",
-        marker_color=vol_colors
+        marker_color=vol_colors,
+        visible="legendonly" # 默认隐藏成交量
     ))
 
 # 添加MACD副图 - 默认显示
@@ -624,7 +672,8 @@ if use_macd and all(c in dfi.columns for c in ["MACD","MACD_signal","MACD_hist"]
         name="MACD",
         yaxis="y3",
         mode="lines",
-        line=dict(color="#3366cc")
+        line=dict(color="#3366cc"),
+        visible="legendonly" # 默认隐藏
     ))
     fig.add_trace(go.Scatter(
         x=dfi.index,
@@ -632,7 +681,8 @@ if use_macd and all(c in dfi.columns for c in ["MACD","MACD_signal","MACD_hist"]
         name="Signal",
         yaxis="y3",
         mode="lines",
-        line=dict(color="#ff9900")
+        line=dict(color="#ff9900"),
+        visible="legendonly" # 默认隐藏
     ))
     fig.add_trace(go.Bar(
         x=dfi.index,
@@ -640,7 +690,8 @@ if use_macd and all(c in dfi.columns for c in ["MACD","MACD_signal","MACD_hist"]
         name="MACD 柱",
         yaxis="y3",
         opacity=0.4,
-        marker_color=np.where(dfi["MACD_hist"] >= 0, "#00cc96", "#ef553b")
+        marker_color=np.where(dfi["MACD_hist"] >= 0, "#00cc96", "#ef553b"),
+        visible="legendonly" # 默认隐藏
     ))
 
 # 添加RSI副图 - 默认隐藏
@@ -651,11 +702,12 @@ if use_rsi and "RSI" in dfi.columns:
         name="RSI",
         yaxis="y4",
         mode="lines",
-        line=dict(color="#17becf")
+        line=dict(color="#17becf"),
+        visible="legendonly" # 默认隐藏
     ))
     # 添加RSI超买超卖线
-    fig.add_hline(y=70, line_dash="dash", line_color="red", yref="y4", opacity=0.5)
-    fig.add_hline(y=30, line_dash="dash", line_color="green", yref="y4", opacity=0.5)
+    fig.add_hline(y=70, line_dash="dash", line_color="red", yref="y4", opacity=0.5, visible=False) # 初始隐藏
+    fig.add_hline(y=30, line_dash="dash", line_color="green", yref="y4", opacity=0.5, visible=False) # 初始隐藏
 
 # 添加KDJ副图 - 默认隐藏
 if use_kdj and all(c in dfi.columns for c in ["KDJ_K","KDJ_D","KDJ_J"]):
@@ -687,8 +739,8 @@ if use_kdj and all(c in dfi.columns for c in ["KDJ_K","KDJ_D","KDJ_J"]):
         visible="legendonly" # 默认隐藏
     ))
     # 添加KDJ超买超卖线
-    fig.add_hline(y=80, line_dash="dash", line_color="red", yref="y5", opacity=0.5)
-    fig.add_hline(y=20, line_dash="dash", line_color="green", yref="y5", opacity=0.5)
+    fig.add_hline(y=80, line_dash="dash", line_color="red", yref="y5", opacity=0.5, visible=False) # 初始隐藏
+    fig.add_hline(y=20, line_dash="dash", line_color="green", yref="y5", opacity=0.5, visible=False) # 初始隐藏
 
 # 更新图表布局
 # ===== 斐波那契回撤（默认隐藏，图例中点击开启；组点击=全显/全隐） =====
