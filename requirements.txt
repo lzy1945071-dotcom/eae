@@ -1,7 +1,8 @@
 streamlit
-plotly
 pandas
-requests
 numpy
-yfinance 
+requests
+yfinance
+plotly
 ta
+time
