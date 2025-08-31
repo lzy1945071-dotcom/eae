@@ -1112,14 +1112,13 @@ if page_clean == "策略":
     c2.metric("建议", decision)
     c3.metric("利多信号", bull_count)
     c4.metric("利空信号", bear_count)
+    # --- 修正后的 st.info 调用 ---
     st.info(
         f"价格百分位：**{pct_rank:.1f}%**｜"
         f"支撑区：**{support_zone[0]:,.4f} ~ {support_zone[1]:,.4f}**｜"
         f"压力区：**{resist_zone[0]:,.4f} ~ {resist_zone[1]:,.4f}**｜"
-        f"建议止损：**{sl:,.4f}** ｜ 建议止盈：**{tp:,.4f}**
-"
+        f"建议止损：**{sl:,.4f}** ｜ 建议止盈：**{tp:,.4f}**\n\n" # 修正：添加了缺失的引号和换行符
         f"提示：{hint}"
-    )
     # === 实时策略指标信息表格（固定全指标，不依赖侧边栏开关） ===
     try:
         ind_table = build_indicator_signal_table(dfi)
