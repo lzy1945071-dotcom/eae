@@ -1,4 +1,4 @@
-# app.py — Legend Quant Terminal Elite v3 FIX10 (TV风格 + 多指标 + 实时策略增强)
+# app.py — Legend Quant Terminal Elite v3 FIX11 (TV风格 + 多指标 + 实时策略增强 + 移动端优化)
 import streamlit as st
 def _append_icon(row):
     label = str(row["指标/条件"])
@@ -212,7 +212,7 @@ import ta
 import math
 from datetime import datetime
 import time
-st.set_page_config(page_title="Legend Quant Terminal Elite v3 FIX10", layout="wide")
+st.set_page_config(page_title="Legend Quant Terminal Elite v3 FIX11", layout="wide")
 # ===== 页面切换（Sidebar 单点按钮：K线图 / 策略） =====
 if 'page' not in st.session_state:
     st.session_state['page'] = "📈 K线图"
@@ -225,7 +225,7 @@ page = st.sidebar.radio(
 )
 # 去掉 emoji，只保留文字，方便后面判断
 page_clean = page.replace("📈 ", "").replace("📊 ", "")
-st.title("💎 Legend Quant Terminal Elite v3 FIX10")
+st.title("💎 Legend Quant Terminal Elite v3 FIX11")
 # 初始化会话状态
 if 'last_refresh_time' not in st.session_state:
     st.session_state.last_refresh_time = None
@@ -271,7 +271,6 @@ if source in ["OKX API（可填API基址）", "TokenInsight API 模式（可填A
 elif source == "Finnhub API":
     # 为Finnhub API添加API Key输入
     api_key = st.sidebar.text_input("Finnhub API Key", value="", type="password")
-
 # 标的与周期
 if source in ["CoinGecko（免API）", "TokenInsight API 模式（可填API基址）"]:
     symbol = st.sidebar.selectbox("个标（CoinGecko coin_id）", ["bitcoin","ethereum","solana","dogecoin","cardano","ripple","polkadot"], index=1)
@@ -389,7 +388,6 @@ def _cg_days_from_interval(sel: str) -> str:
     if sel.startswith("1M"): return "365"
     if sel.startswith("max"): return "max"
     return "180"
-
 @st.cache_data(ttl=900, hash_funcs={"_thread.RLock": lambda _: None})
 def load_coingecko_ohlc_robust(coin_id: str, interval_sel: str):
     days = _cg_days_from_interval(interval_sel)
@@ -422,7 +420,6 @@ def load_coingecko_ohlc_robust(coin_id: str, interval_sel: str):
     except Exception:
         pass
     return pd.DataFrame()
-
 @st.cache_data(ttl=900, hash_funcs={"_thread.RLock": lambda _: None})
 def load_tokeninsight_ohlc(api_base_url: str, coin_id: str, interval_sel: str):
     if not api_base_url:
@@ -438,7 +435,6 @@ def load_tokeninsight_ohlc(api_base_url: str, coin_id: str, interval_sel: str):
     except Exception:
         pass
     return load_coingecko_ohlc_robust(coin_id, interval_sel)
-
 @st.cache_data(ttl=900, hash_funcs={"_thread.RLock": lambda _: None})
 def load_okx_public(instId: str, bar: str, base_url: str = ""):
     url = (base_url.rstrip('/') if base_url else "https://www.okx.com") + "/api/v5/market/candles"
@@ -452,7 +448,6 @@ def load_okx_public(instId: str, bar: str, base_url: str = ""):
         ts = int(a[0]); o=float(a[1]); h=float(a[2]); l=float(a[3]); c=float(a[4]); v=float(a[5])
         rows.append((pd.to_datetime(ts, unit="ms"), o,h,l,c,v))
     return pd.DataFrame(rows, columns=["Date","Open","High","Low","Close","Volume"]).set_index("Date")
-
 @st.cache_data(ttl=900, hash_funcs={"_thread.RLock": lambda _: None})
 def load_yf(symbol: str, interval_sel: str):
     interval_map = {"1d":"1d","1wk":"1wk","1mo":"1mo"}
@@ -461,7 +456,6 @@ def load_yf(symbol: str, interval_sel: str):
     if not df.empty:
         df = df[["Open","High","Low","Close","Volume"]].dropna()
     return df
-
 @st.cache_data(ttl=900, hash_funcs={"_thread.RLock": lambda _: None})
 def load_finnhub(symbol: str, api_key: str, interval_sel: str):
     try:
@@ -476,7 +470,6 @@ def load_finnhub(symbol: str, api_key: str, interval_sel: str):
         r = requests.get(url, params=params, timeout=20)
         r.raise_for_status()
         data = r.json()
-        
         if data.get("s") == "ok":  # Finnhub成功响应格式
             # 转换为DataFrame
             df = pd.DataFrame({
@@ -492,7 +485,6 @@ def load_finnhub(symbol: str, api_key: str, interval_sel: str):
     except Exception as e:
         st.error(f"Finnhub API error: {str(e)}")
         return pd.DataFrame()
-
 def load_router(source, symbol, interval_sel, api_base="", api_key=""):
     # 使用refresh_counter确保每次刷新都重新加载数据
     _ = st.session_state.refresh_counter  # 确保这个函数在refresh_counter变化时重新运行
@@ -507,13 +499,11 @@ def load_router(source, symbol, interval_sel, api_base="", api_key=""):
         return load_finnhub(symbol, api_key, interval_sel)
     else:
         return load_yf(symbol, interval_sel)
-
 # 加载数据
 df = load_router(source, symbol, interval, api_base, api_key)
 if df.empty or not set(["Open","High","Low","Close"]).issubset(df.columns):
     st.error("数据为空或字段缺失：请更换数据源/周期，或稍后重试（免费源可能限流）。")
     st.stop()
-
 # ========================= Indicators =========================
 def parse_int_list(text):
     try:
@@ -521,7 +511,6 @@ def parse_int_list(text):
         return [x for x in lst if x > 0]
     except Exception:
         return []
-
 def add_indicators(df):
     out = df.copy()
     close, high, low = out["Close"], out["High"], out["Low"]
@@ -592,9 +581,7 @@ def add_indicators(df):
         out["KDJ_D"] = out["KDJ_K"].ewm(com=int(kdj_smooth_d)-1).mean()
         out["KDJ_J"] = 3 * out["KDJ_K"] - 2 * out["KDJ_D"]
     return out
-
 dfi = add_indicators(df).dropna(how="all")
-
 # ========================= 信号检测函数 =========================
 def detect_signals(df):
     """检测各种交易信号"""
@@ -639,10 +626,8 @@ def detect_signals(df):
         signals["KDJ_Overbought"] = np.where(df["KDJ_K"] > 80, "Sell", None)
         signals["KDJ_Oversold"] = np.where(df["KDJ_K"] < 20, "Buy", None)
     return signals
-
 # 检测信号
 signals = detect_signals(dfi)
-
 # ========================= 支撑阻力计算 =========================
 def calculate_support_resistance(df, window=20):
     """计算支撑和阻力位"""
@@ -658,9 +643,7 @@ def calculate_support_resistance(df, window=20):
         resistance = recent_high
         support = recent_low
     return support, resistance
-
 support, resistance = calculate_support_resistance(dfi)
-
 if page_clean == "K线图":
     # ========================= TradingView 风格图表 =========================
     st.subheader(f"🕯️ K线（{symbol} / {source} / {interval}）")
@@ -907,33 +890,19 @@ if page_clean == "K线图":
         first = False
     # 组点击行为：点击一个成员即可全显/全隐
     fig.update_layout(legend=dict(groupclick="togglegroup"))
-    
-    # 优化移动端双指缩放体验的关键设置
     fig.update_layout(
         hovermode='x unified',
-        xaxis=dict(
-            showspikes=True, 
-            spikemode='across', 
-            spikesnap='cursor', 
-            showline=True,
-            rangeslider=dict(visible=False),
-            fixedrange=False  # 关键：允许x轴缩放
-        ),
-        yaxis=dict(
-            showspikes=True, 
-            spikemode='across', 
-            spikesnap='cursor', 
-            showline=True,
-            fixedrange=False  # 关键：允许y轴缩放
-        ),
+        xaxis=dict(showspikes=True, spikemode='across', spikesnap='cursor', showline=True),
+        yaxis=dict(showspikes=True, spikemode='across', spikesnap='cursor', showline=True),
         xaxis_rangeslider_visible=False,
-        height=700,  # 为移动端优化高度
-        dragmode="zoom",  # 适合移动端的初始交互模式
-        uirevision='constant',
-        # 移动端触摸优化
-        touchmode='continuous',
-        hoverdistance=10,
-        spikedistance=10,
+        height=1000,
+        dragmode="pan", # 确保拖动模式是平移
+        # --- 关键优化：添加 uirevision 以保持交互状态 ---
+        uirevision='constant', # <-- 这是关键优化点
+        yaxis2=dict(domain=[0.45, 0.57], title="成交量", showgrid=False),
+        yaxis3=dict(domain=[0.25, 0.44], title="MACD", showgrid=False),
+        yaxis4=dict(domain=[0.15, 0.24], title="RSI", showgrid=False, range=[0,100]),
+        yaxis5=dict(domain=[0.0, 0.14], title="KDJ", showgrid=False, range=[0,100]),
         modebar_add=["drawline","drawopenpath","drawclosedpath","drawcircle","drawrect","eraseshape"],
         legend=dict(
             orientation="h",
@@ -941,30 +910,22 @@ if page_clean == "K线图":
             y=1.02,
             xanchor="right",
             x=1
-        ),
-        # 优化Y轴域设置
-        yaxis2=dict(domain=[0.45, 0.57], title="成交量", showgrid=False),
-        yaxis3=dict(domain=[0.25, 0.44], title="MACD", showgrid=False),
-        yaxis4=dict(domain=[0.15, 0.24], title="RSI", showgrid=False, range=[0,100]),
-        yaxis5=dict(domain=[0.0, 0.14], title="KDJ", showgrid=False, range=[0,100])
+        )
     )
-    
-    # 优化移动端图表显示
+    # --- 优化后的 st.plotly_chart 调用 ---
     st.plotly_chart(
-        fig, 
+        fig,
         use_container_width=True,
-        responsive=True,  # 确保图表响应式
+        # --- 关键：优化移动端交互的 config ---
         config={
-            "scrollZoom": True,
-            "displayModeBar": True,
-            "displaylogo": False,
-            "responsive": True,  # Plotly内部响应式设置
-            "modeBarButtonsToAdd": ["zoom2d", "pan2d", "resetScale2d"],
-            "modeBarButtonsToRemove": ["select2d", "lasso2d", "hoverClosestCartesian", "hoverCompareCartesian"],
-            "doubleClick": "reset"
+            "scrollZoom": True,        # 启用滚轮/双指缩放
+            "displayModeBar": True,    # 显示模式栏（可选，但有时有用）
+            "displaylogo": False,      # 隐藏 Plotly logo
+            # --- 可选：进一步定制模式栏 ---
+            # "modeBarButtonsToAdd": ['zoom2d', 'pan2d', 'select2d', 'lasso2d', 'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d'],
+             # "modeBarButtonsToRemove": ['zoomIn2d', 'zoomOut2d'], # 移除特定按钮
         }
     )
-
 if page_clean == "策略":
     # ========================= 实时策略建议（增强版） =========================
     st.markdown("---")
@@ -1155,7 +1116,8 @@ if page_clean == "策略":
         f"价格百分位：**{pct_rank:.1f}%**｜"
         f"支撑区：**{support_zone[0]:,.4f} ~ {support_zone[1]:,.4f}**｜"
         f"压力区：**{resist_zone[0]:,.4f} ~ {resist_zone[1]:,.4f}**｜"
-        f"建议止损：**{sl:,.4f}** ｜ 建议止盈：**{tp:,.4f}**\n"
+        f"建议止损：**{sl:,.4f}** ｜ 建议止盈：**{tp:,.4f}**
+"
         f"提示：{hint}"
     )
     # === 实时策略指标信息表格（固定全指标，不依赖侧边栏开关） ===
