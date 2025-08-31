@@ -1118,6 +1118,7 @@ if page_clean == "策略":
         f"压力区：**{resist_zone[0]:,.4f} ~ {resist_zone[1]:,.4f}**｜"
         f"建议止损：**{sl:,.4f}** ｜ 建议止盈：**{tp:,.4f}**\n\n"  # 修正：移除异常的引号，添加换行
         f"提示：{hint}"
+    )
     # === 实时策略指标信息表格（固定全指标，不依赖侧边栏开关） ===
     try:
         ind_table = build_indicator_signal_table(dfi)
