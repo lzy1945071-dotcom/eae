@@ -1107,7 +1107,6 @@ if page_clean == "策略":
         hint = "低位区间（≤25%）→ 倾向逢低布局，关注止损与量能确认。"
     elif pct_rank >= 75:
         hint = "高位区间（≥75%）→ 谨慎追高，关注回撤与量能衰减。"
-    c1,c2,c3,c4 = st.columns(4)
     c1.metric("最新价", f"{price:,.4f}")
     c2.metric("建议", decision)
     c3.metric("利多信号", bull_count)
@@ -1117,7 +1116,7 @@ if page_clean == "策略":
         f"价格百分位：**{pct_rank:.1f}%**｜"
         f"支撑区：**{support_zone[0]:,.4f} ~ {support_zone[1]:,.4f}**｜"
         f"压力区：**{resist_zone[0]:,.4f} ~ {resist_zone[1]:,.4f}**｜"
-        f"建议止损：**{sl:,.4f}** ｜ 建议止盈：**{tp:,.4f}**\n\n" # 修正：添加了缺失的引号和换行符
+        f"建议止损：**{sl:,.4f}** ｜ 建议止盈：**{tp:,.4f}**\n\n"  # 修正：确保每行f-string正确连接，并添加换行
         f"提示：{hint}"
     # === 实时策略指标信息表格（固定全指标，不依赖侧边栏开关） ===
     try:
