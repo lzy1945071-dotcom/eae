@@ -446,10 +446,10 @@ def calculate_support_resistance(df, window=20):
 
 support, resistance = calculate_support_resistance(dfi)
 
-    # ========================= TradingView 风格图表 =========================
-    st.subheader(f"🕯️ K线（{symbol} / {source} / {interval}）")
-    fig = go.Figure()
-    # --- Build hovertext for candlestick (keep original precision) ---
+# ========================= TradingView 风格图表 =========================
+st.subheader(f"🕯️ K线（{symbol} / {source} / {interval}）")
+fig = go.Figure()
+# --- Build hovertext for candlestick (keep original precision) ---
     try:
         # choose volume column
         volume_col = None
