@@ -888,17 +888,20 @@ if use_ml_rsi and "ML_RSI" in dfi.columns:
         x=dfi.index,
         y=dfi["ML_RSI"],
         name="ML RSI",
-        yaxis="y4",
+        yaxis="y6", # 使用新的 y6 轴
         mode="lines",
         line=dict(color="#AB63FA"),
         visible="legendonly"
     ))
-    if "ML_RSI_Long_Threshold" in dfi.columns:
-        fig.add_hline(y=dfi["ML_RSI_Long_Threshold"].iloc[-1], line_dash="dot", line_color="#00CC96",
-                      annotation_text="Long", annotation_position="top right", yref="y4", visible="legendonly")
-    if "ML_RSI_Short_Threshold" in dfi.columns:
-        fig.add_hline(y=dfi["ML_RSI_Short_Threshold"].iloc[-1], line_dash="dot", line_color="#EF553B",
-                      annotation_text="Short", annotation_position="bottom right", yref="y4", visible="legendonly")
+    if "ML_RSI_Long_Threshold" in dfi.columns and not dfi["ML_RSI_Long_Threshold"].isna().all():
+        last_long_thresh = dfi["ML_RSI_Long_Threshold"].dropna().iloc[-1] if not dfi["ML_RSI_Long_Threshold"].dropna().empty else 70
+        fig.add_hline(y=last_long_thresh, line_dash="dot", line_color="#00CC96",
+                      annotation_text="Long", annotation_position="top right", yref="y6", visible="legendonly")
+    if "ML_RSI_Short_Threshold" in dfi.columns and not dfi["ML_RSI_Short_Threshold"].isna().all():
+        last_short_thresh = dfi["ML_RSI_Short_Threshold"].dropna().iloc[-1] if not dfi["ML_RSI_Short_Threshold"].dropna().empty else 30
+        fig.add_hline(y=last_short_thresh, line_dash="dot", line_color="#EF553B",
+                      annotation_text="Short", annotation_position="bottom right", yref="y6", visible="legendonly")
+    fig.add_hline(y=50, line_dash="solid", line_color="gray", yref="y6", opacity=0.3, visible="legendonly")
 
 # 4. Parabolic RSI (副图)
 if use_parabolic_rsi and "Parabolic_RSI" in dfi.columns:
@@ -906,10 +909,9 @@ if use_parabolic_rsi and "Parabolic_RSI" in dfi.columns:
         x=dfi.index,
         y=dfi["Parabolic_RSI"],
         name="抛物线RSI",
-        yaxis="y4",
+        yaxis="y4", # 与标准 RSI 共用 y4 轴
         mode="markers",
-        marker=dict(symbol="circle", size=4),
-        marker_color=np.where(dfi["Parabolic_RSI_Is_Below"], "#00CC96", "#EF553B"),
+        marker=dict(symbol="circle", size=4, color=np.where(dfi["Parabolic_RSI_Is_Below"], "#00CC96", "#EF553B")),
         visible="legendonly"
     ))
 
@@ -919,12 +921,12 @@ if use_norm_t3 and "Norm_T3_Osc" in dfi.columns:
         x=dfi.index,
         y=dfi["Norm_T3_Osc"],
         name="归一化T3",
-        yaxis="y6",
+        yaxis="y7", # 使用新的 y7 轴
         marker_color=np.where(dfi["Norm_T3_Osc"] >= 0, "#00CC96", "#EF553B"),
         opacity=0.7,
         visible="legendonly"
     ))
-    fig.add_hline(y=0, line_dash="solid", line_color="white", yref="y6", opacity=0.5)
+    fig.add_hline(y=0, line_dash="solid", line_color="white", yref="y7", opacity=0.5, visible="legendonly")
 
 # --- 更新图表布局 ---
 fig.update_layout(
@@ -934,11 +936,15 @@ fig.update_layout(
     xaxis_rangeslider_visible=False,
     height=1000,
     dragmode="pan",
-    yaxis2=dict(domain=[0.45, 0.57], title="成交量", showgrid=False),
-    yaxis3=dict(domain=[0.25, 0.44], title="MACD", showgrid=False),
-    yaxis4=dict(domain=[0.15, 0.24], title="RSI/MLRSI", showgrid=False, range=[0,100]),
-    yaxis5=dict(domain=[0.0, 0.14], title="KDJ", showgrid=False, range=[0,100]),
-    yaxis6=dict(domain=[0.60, 0.72], title="归一化T3", showgrid=False, range=[-0.6, 0.6]), # 新的Y轴
+    # 重新分配 yaxis 的 domain，为新增的副图留出空间
+    # 原布局: y2(成交量), y3(MACD), y4(RSI), y5(KDJ)
+    # 新布局: y2(成交量), y3(MACD), y4(RSI/Parabolic RSI), y5(KDJ), y6(ML RSI), y7(Normalised T3)
+    yaxis2=dict(domain=[0.73, 0.85], title="成交量", showgrid=False), # 成交量
+    yaxis3=dict(domain=[0.53, 0.72], title="MACD", showgrid=False),   # MACD
+    yaxis4=dict(domain=[0.33, 0.52], title="RSI/抛物线RSI", showgrid=False, range=[0,100]), # RSI / Parabolic RSI
+    yaxis5=dict(domain=[0.16, 0.32], title="KDJ", showgrid=False, range=[0,100]),            # KDJ
+    yaxis6=dict(domain=[0.08, 0.15], title="ML RSI", showgrid=False, range=[0,100]),         # ML RSI
+    yaxis7=dict(domain=[0.0, 0.07], title="归一化T3", showgrid=False, range=[-0.6, 0.6]),    # Normalised T3
     modebar_add=["drawline","drawopenpath","drawclosedpath","drawcircle","drawrect","eraseshape"],
     legend=dict(
         orientation="h",
@@ -982,27 +988,6 @@ for lvl in levels:
         # 主图轴
     )
     first = False
-
-# ===== 添加MTF信号表格 =====
-if use_zlema_trend and st.session_state.refresh_counter > 0:
-    # 这里简化处理，直接使用当前图表数据的趋势作为信号
-    # 在真实应用中，这里需要从不同时间框架获取数据
-    current_trend = "Bullish" if dfi["ZLEMA_Trend"].iloc[-1] == 1 else "Bearish"
-    mtf_data = {
-        "Time Frame": mtf_timeframes,
-        "Signal": [current_trend] * len(mtf_timeframes)
-    }
-    mtf_df = pd.DataFrame(mtf_data)
-    # 使用 Plotly 在图表上绘制表格
-    fig.add_trace(go.Table(
-        header=dict(values=list(mtf_df.columns),
-                    fill_color='paleturquoise',
-                    align='center'),
-        cells=dict(values=[mtf_df[col] for col in mtf_df.columns],
-                   fill_color='lavender',
-                   align='center'),
-        domain=dict(x=[0.75, 0.98], y=[0.8, 0.95])
-    ))
 
 # 显示图表
 st.plotly_chart(fig, use_container_width=True, config={
