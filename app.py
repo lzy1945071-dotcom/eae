@@ -69,7 +69,12 @@ elif source in ["OKX 公共行情（免API）", "OKX API（可填API基址）"]:
     symbol = st.sidebar.selectbox("个标（OKX InstId）", ["BTC-USDT","ETH-USDT","SOL-USDT","XRP-USDT","DOGE-USDT"], index=1)
     interval = st.sidebar.selectbox("K线周期", ["1m","3m","5m","15m","30m","1H","2H","4H","6H","12H","1D","1W","1M"], index=3)
 elif source == "Finnhub API":
-    # Finnhub API特定的输入
+    # 为Finnhub API添加API Key输入
+    # 注意：出于安全考虑，在生产环境中不建议在代码中硬编码敏感信息如API Key。
+    # 更安全的做法是使用环境变量或Streamlit Secrets管理。
+    # 此处为演示目的直接赋值，您可以根据需要修改。
+    DEFAULT_FINNHUB_API_KEY = "d2q60mpr01qn21mhud5gd2q60mpr01qn21mhud60" # 您的API Key
+    api_key = st.sidebar.text_input("Finnhub API Key", value=DEFAULT_FINNHUB_API_KEY, type="password")
     symbol = st.sidebar.text_input("个标（Finnhub symbol）", value="AAPL")
     interval = st.sidebar.selectbox("K线周期", ["1", "5", "15", "30", "60", "D", "W", "M"], index=0,
                                   help="Finnhub支持的周期：1,5,15,30,60分钟,D=日,W=周,M=月")
