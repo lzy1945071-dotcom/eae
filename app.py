@@ -1,4 +1,4 @@
-# app.py — Legend Quant Terminal Elite v3 FIX10 (TV风格 + 多指标 + 实时策略增强)
+# app.py — Legend Quant Terminal Elite v5
 import streamlit as st
 import pandas as pd
 import numpy as np
