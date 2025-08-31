@@ -303,6 +303,27 @@ if source in ["OKX API（可填API基址）", "TokenInsight API 模式（可填A
             api_key = st.text_input("OKX-API-KEY", value="", type="password")
             api_secret = st.text_input("OKX-API-SECRET", value="", type="password")
             api_passphrase = st.text_input("OKX-API-PASSPHRASE", value="", type="password")
+# 新增 Finnhub API 数据源
+use_finnhub = st.sidebar.checkbox("使用 Finnhub 数据源")
+if use_finnhub:
+    st.sidebar.markdown("请填写 Finnhub API Key")
+    finnhub_api_key = st.sidebar.text_input("Finnhub API Key", "")
+    finnhub_symbol = st.sidebar.text_input("股票/加密货币代码", "AAPL")
+    finnhub_resolution = st.sidebar.selectbox("K线周期", ["1", "5", "15", "30", "60", "D", "W", "M"])
+    if st.sidebar.button("确认 Finnhub API 输入"):
+        if finnhub_api_key:
+            st.success("Finnhub API 配置成功！")
+            
+            # 请求 Finnhub K线数据示例
+            url = f"https://finnhub.io/api/v1/quote?symbol={finnhub_symbol}&token={finnhub_api_key}"
+            response = requests.get(url)
+            if response.status_code == 200:
+                data = response.json()
+                st.write(f"{finnhub_symbol} 最新行情：", data)
+            else:
+                st.error("Finnhub API 请求失败，请检查 API Key 或网络。")
+        else:
+            st.error("请填写 Finnhub API Key")
 
 # 标的与周期
 if source in ["CoinGecko（免API）", "TokenInsight API 模式（可填API基址）"]:
@@ -1527,3 +1548,33 @@ if page_clean == "策略":
             st.plotly_chart(px.histogram(res["trades"], nbins=20, title="单笔收益分布（组合策略）", config={'scrollZoom': True, 'responsive': True, 'displaylogo': False}), use_container_width=True)
         else:
             st.info("组合策略暂无闭合交易样本。")
+# --------------------------
+# Finnhub 数据加载函数
+# --------------------------
+def load_finnhub(symbol, api_key, interval):
+    try:
+        resolution_map = {
+            "1m": "1", "5m": "5", "15m": "15", "30m": "30", 
+            "60m": "60", "D": "D", "W": "W", "M": "M"
+        }
+        res = resolution_map.get(interval, "D")
+        now = int(time.time())
+        start_time = now - 365*24*60*60  # 过去一年
+        url = f"https://finnhub.io/api/v1/stock/candle?symbol={symbol}&resolution={res}&from={start_time}&to={now}&token={api_key}"
+        r = requests.get(url)
+        data = r.json()
+        if data.get("s") != "ok":
+            return pd.DataFrame()  # 返回空
+        df = pd.DataFrame({
+            "t": pd.to_datetime(data["t"], unit='s'),
+            "o": data["o"],
+            "h": data["h"],
+            "l": data["l"],
+            "c": data["c"],
+            "v": data["v"]
+        })
+        df.set_index("t", inplace=True)
+        return df
+    except Exception as e:
+        st.error(f"Finnhub API error: {str(e)}")
+        return pd.DataFrame()
